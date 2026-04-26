@@ -1,12 +1,12 @@
 "use client"
 
-import { useState } from "react"
+import React, { useState } from "react"
 import {
   X, FileText, File, FileSpreadsheet, Image,
   Download, Pencil, Send, Stamp, Trash2, ExternalLink,
   CheckCircle2, Clock, AlertCircle, XCircle,
   Building2, Folder, Calendar, User, Hash, Tag,
-  GitBranch, Mail, History, Activity, Info, Workflow,
+  GitBranch, Mail, History, Activity, Info,
   ChevronRight, Shield, Eye,
 } from "lucide-react"
 import { Button } from "@/components/ui/button"
@@ -45,7 +45,7 @@ const typeConfig: Record<DocFile["type"], { label: string; icon: React.ElementTy
 const TABS = [
   { id: "info",      label: "Informations", icon: Info },
   { id: "versions",  label: "Versions",     icon: History },
-  { id: "workflow",  label: "Workflow",     icon: Workflow },
+  { id: "workflow",  label: "Workflow",     icon: GitBranch },
   { id: "activity",  label: "Activités",    icon: Activity },
 ] as const
 
