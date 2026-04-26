@@ -1,7 +1,7 @@
 "use client"
 
 import { useState, useEffect } from "react"
-import { useRouter, useSearchParams } from "next/navigation"
+import { useRouter } from "next/navigation"
 import {
   Search, FileText, Download, Eye, Bookmark, BookmarkCheck,
   X, Mail, GitBranch, Calendar, ChevronDown, SlidersHorizontal,
@@ -174,18 +174,12 @@ function DetailPanel({ doc, onClose }: { doc: Doc; onClose: () => void }) {
 
 export function SearchPage() {
   const router = useRouter()
-  const searchParams = useSearchParams()
-  const sourceEmail = searchParams.get("sourceEmail")
-  const sourceLabel = searchParams.get("sourceLabel")
-  
+  const [allDocs, setAllDocs] = useState<Doc[]>([])
   const [query, setQuery] = useState("")
   const [armoireFilter, setArmoireFilter] = useState("all")
   const [typeFilter, setTypeFilter] = useState("all")
+  const [periodFilter, setPeriodFilter] = useState("all")
   const [statusFilter, setStatusFilter] = useState("all")
-  const [dateFilter, setDateFilter] = useState(sourceEmail ? "all" : "all")
-  const [customDateStart, setCustomDateStart] = useState("")
-  const [customDateEnd, setCustomDateEnd] = useState("")
-  const [showDateModal, setShowDateModal] = useState(false)
   const [selectedDoc, setSelectedDoc] = useState<Doc | null>(null)
   const [savedList, setSavedList] = useState<string[]>(savedSearches)
   const [saveSuccess, setSaveSuccess] = useState(false)
@@ -261,9 +255,6 @@ export function SearchPage() {
     const matchType = typeFilter === "all" || doc.type.toUpperCase() === typeFilter
     const matchStatus = statusFilter === "all" || doc.status === statusFilter
     
-    // Filtre par source email si spécifié
-    const matchSource = !sourceEmail || doc.source === decodeURIComponent(sourceEmail)
-    
     let matchDate = true
     if (dateFilter !== "all") {
       try {
@@ -292,7 +283,7 @@ export function SearchPage() {
       }
     }
     
-    return matchQuery && matchArmoire && matchType && matchStatus && matchDate && matchSource
+    return matchQuery && matchArmoire && matchType && matchStatus && matchDate
   })
 
   const handleSave = () => {
@@ -435,28 +426,6 @@ export function SearchPage() {
 
         {/* Liste des Résultats */}
         <div className="flex-1 overflow-y-auto">
-          {/* Filtre actif de source */}
-          {sourceEmail && (
-            <div className="bg-blue-50 dark:bg-blue-950/30 border-b border-blue-200 dark:border-blue-800 px-4 py-3 flex items-center justify-between">
-              <div className="flex items-center gap-2">
-                <Mail className="h-4 w-4 text-blue-600 dark:text-blue-400" />
-                <span className="text-sm text-blue-900 dark:text-blue-100">
-                  <span className="font-semibold">Filtre actif:</span> {sourceLabel}
-                </span>
-              </div>
-              <Button
-                variant="ghost"
-                size="icon"
-                className="h-6 w-6 text-blue-600 dark:text-blue-400 hover:bg-blue-100 dark:hover:bg-blue-900/50"
-                onClick={() => {
-                  router.push("/recherche")
-                }}
-              >
-                <X className="h-4 w-4" />
-              </Button>
-            </div>
-          )}
-          
           {filtered.length === 0 ? (
             <div className="flex flex-col items-center justify-center h-full gap-3 text-muted-foreground">
               <Search className="h-10 w-10 opacity-20" />
