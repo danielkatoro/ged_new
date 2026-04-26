@@ -185,6 +185,8 @@ export function SearchPage() {
   const [saveSuccess, setSaveSuccess] = useState(false)
   const [showFilters, setShowFilters] = useState(false)
   const [dateFilter, setDateFilter] = useState("all")
+  const [customDateStart, setCustomDateStart] = useState("")
+  const [customDateEnd, setCustomDateEnd] = useState("")
 
   useEffect(() => {
     const loadData = () => {
@@ -254,14 +256,29 @@ export function SearchPage() {
     
     let matchDate = true
     if (dateFilter !== "all") {
-      const range = getDateRange(dateFilter)
-      if (range) {
-        try {
-          const docDate = new Date(doc.date)
-          matchDate = docDate >= range.start && docDate < range.end
-        } catch {
-          matchDate = false
+      try {
+        const docDate = new Date(doc.date)
+        
+        // Plage personnalisée
+        if (dateFilter === "custom") {
+          if (customDateStart) {
+            const startDate = new Date(customDateStart)
+            if (docDate < startDate) matchDate = false
+          }
+          if (customDateEnd) {
+            const endDate = new Date(customDateEnd)
+            endDate.setDate(endDate.getDate() + 1) // Inclure toute la journée de fin
+            if (docDate >= endDate) matchDate = false
+          }
+        } else {
+          // Plages prédéfinies
+          const range = getDateRange(dateFilter)
+          if (range) {
+            matchDate = docDate >= range.start && docDate < range.end
+          }
         }
+      } catch {
+        matchDate = false
       }
     }
     
@@ -276,7 +293,7 @@ export function SearchPage() {
   }
 
   const clearAllFilters = () => {
-    setArmoireFilter("all"); setTypeFilter("all"); setDateFilter("all"); setStatusFilter("all"); setQuery("")
+    setArmoireFilter("all"); setTypeFilter("all"); setDateFilter("all"); setStatusFilter("all"); setQuery(""); setCustomDateStart(""); setCustomDateEnd("")
   }
 
   return (
@@ -347,7 +364,13 @@ export function SearchPage() {
                 </SelectContent>
               </Select>
 
-              <Select value={dateFilter} onValueChange={setDateFilter}>
+              <Select value={dateFilter} onValueChange={(value) => {
+                setDateFilter(value)
+                if (value !== "custom") {
+                  setCustomDateStart("")
+                  setCustomDateEnd("")
+                }
+              }}>
                 <SelectTrigger className="h-7 text-[11px] w-auto min-w-[120px]">
                   <Calendar className="h-3 w-3 mr-1 text-muted-foreground" />
                   <SelectValue placeholder="Période" />
@@ -358,8 +381,27 @@ export function SearchPage() {
                   <SelectItem value="week">Cette semaine</SelectItem>
                   <SelectItem value="month">Ce mois</SelectItem>
                   <SelectItem value="year">Cette année</SelectItem>
+                  <SelectItem value="custom">Personnalisée</SelectItem>
                 </SelectContent>
               </Select>
+
+              {dateFilter === "custom" && (
+                <div className="flex items-center gap-2">
+                  <input
+                    type="date"
+                    value={customDateStart}
+                    onChange={(e) => setCustomDateStart(e.target.value)}
+                    className="h-7 text-[11px] px-2 rounded border border-border bg-background focus:ring-1 focus:ring-primary outline-none"
+                  />
+                  <span className="text-[11px] text-muted-foreground">à</span>
+                  <input
+                    type="date"
+                    value={customDateEnd}
+                    onChange={(e) => setCustomDateEnd(e.target.value)}
+                    className="h-7 text-[11px] px-2 rounded border border-border bg-background focus:ring-1 focus:ring-primary outline-none"
+                  />
+                </div>
+              )}
 
               <Select value={statusFilter} onValueChange={setStatusFilter}>
                 <SelectTrigger className="h-7 text-[11px] w-auto min-w-[110px]">
