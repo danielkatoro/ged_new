@@ -184,6 +184,7 @@ export function SearchPage() {
   const [savedList, setSavedList] = useState<string[]>(savedSearches)
   const [saveSuccess, setSaveSuccess] = useState(false)
   const [showFilters, setShowFilters] = useState(false)
+  const [dateFilter, setDateFilter] = useState("all")
 
   useEffect(() => {
     const loadData = () => {
@@ -209,7 +210,40 @@ export function SearchPage() {
     return store.subscribe(loadData)
   }, [])
 
-  const activeFilters = [armoireFilter, typeFilter, periodFilter, statusFilter].filter(f => f !== "all").length
+  const activeFilters = [armoireFilter, typeFilter, dateFilter, statusFilter].filter(f => f !== "all").length
+
+  const getDateRange = (filter: string): { start: Date; end: Date } | null => {
+    const now = new Date()
+    const today = new Date(now.getFullYear(), now.getMonth(), now.getDate())
+    
+    switch (filter) {
+      case "today": {
+        const tomorrow = new Date(today)
+        tomorrow.setDate(tomorrow.getDate() + 1)
+        return { start: today, end: tomorrow }
+      }
+      case "week": {
+        const dayOfWeek = today.getDay()
+        const startOfWeek = new Date(today)
+        startOfWeek.setDate(today.getDate() - dayOfWeek)
+        const endOfWeek = new Date(startOfWeek)
+        endOfWeek.setDate(endOfWeek.getDate() + 7)
+        return { start: startOfWeek, end: endOfWeek }
+      }
+      case "month": {
+        const startOfMonth = new Date(today.getFullYear(), today.getMonth(), 1)
+        const endOfMonth = new Date(today.getFullYear(), today.getMonth() + 1, 1)
+        return { start: startOfMonth, end: endOfMonth }
+      }
+      case "year": {
+        const startOfYear = new Date(today.getFullYear(), 0, 1)
+        const endOfYear = new Date(today.getFullYear() + 1, 0, 1)
+        return { start: startOfYear, end: endOfYear }
+      }
+      default:
+        return null
+    }
+  }
 
   const filtered = allDocs.filter(doc => {
     const q = query.toLowerCase()
@@ -217,7 +251,21 @@ export function SearchPage() {
     const matchArmoire = armoireFilter === "all" || doc.armoire === armoireFilter
     const matchType = typeFilter === "all" || doc.type.toUpperCase() === typeFilter
     const matchStatus = statusFilter === "all" || doc.status === statusFilter
-    return matchQuery && matchArmoire && matchType && matchStatus
+    
+    let matchDate = true
+    if (dateFilter !== "all") {
+      const range = getDateRange(dateFilter)
+      if (range) {
+        try {
+          const docDate = new Date(doc.date)
+          matchDate = docDate >= range.start && docDate < range.end
+        } catch {
+          matchDate = false
+        }
+      }
+    }
+    
+    return matchQuery && matchArmoire && matchType && matchStatus && matchDate
   })
 
   const handleSave = () => {
@@ -228,7 +276,7 @@ export function SearchPage() {
   }
 
   const clearAllFilters = () => {
-    setArmoireFilter("all"); setTypeFilter("all"); setPeriodFilter("all"); setStatusFilter("all"); setQuery("")
+    setArmoireFilter("all"); setTypeFilter("all"); setDateFilter("all"); setStatusFilter("all"); setQuery("")
   }
 
   return (
@@ -299,6 +347,20 @@ export function SearchPage() {
                 </SelectContent>
               </Select>
 
+              <Select value={dateFilter} onValueChange={setDateFilter}>
+                <SelectTrigger className="h-7 text-[11px] w-auto min-w-[120px]">
+                  <Calendar className="h-3 w-3 mr-1 text-muted-foreground" />
+                  <SelectValue placeholder="Période" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">Toutes les dates</SelectItem>
+                  <SelectItem value="today">Aujourd&apos;hui</SelectItem>
+                  <SelectItem value="week">Cette semaine</SelectItem>
+                  <SelectItem value="month">Ce mois</SelectItem>
+                  <SelectItem value="year">Cette année</SelectItem>
+                </SelectContent>
+              </Select>
+
               <Select value={statusFilter} onValueChange={setStatusFilter}>
                 <SelectTrigger className="h-7 text-[11px] w-auto min-w-[110px]">
                   <SelectValue placeholder="Statut" />
@@ -343,8 +405,8 @@ export function SearchPage() {
               <p className="text-sm">Aucun document trouvé</p>
             </div>
           ) : (
-            <div className="divide-y divide-border">
-              {filtered.map((doc) => {
+            <div className="divide-y divide-border p-4">
+              {filtered.map((doc, index) => {
                 const isActive = selectedDoc?.id === doc.id
                 const status = statusConfig[doc.status]
                 const StatusIcon = status.icon
@@ -353,15 +415,18 @@ export function SearchPage() {
                     key={doc.id}
                     onClick={() => setSelectedDoc(isActive ? null : doc)}
                     className={cn(
-                      "flex items-start gap-3 px-4 py-3 cursor-pointer transition-all group",
+                      "flex items-start gap-3 px-3 py-3 -mx-3 cursor-pointer transition-all group rounded",
                       isActive ? "bg-muted/60" : "hover:bg-muted/30"
                     )}
                   >
-                    <div className={cn(
-                      "h-9 w-9 rounded-lg flex items-center justify-center flex-shrink-0 transition-colors",
-                      isActive ? "bg-primary text-primary-foreground" : "bg-muted group-hover:bg-primary/10"
-                    )}>
-                      <FileText className="h-4 w-4" />
+                    <div className="flex flex-col items-center gap-1 flex-shrink-0">
+                      <div className={cn(
+                        "h-9 w-9 rounded-lg flex items-center justify-center transition-colors",
+                        isActive ? "bg-primary text-primary-foreground" : "bg-muted group-hover:bg-primary/10"
+                      )}>
+                        <FileText className="h-4 w-4" />
+                      </div>
+                      <span className="text-[9px] text-muted-foreground font-medium">{index + 1}</span>
                     </div>
 
                     <div className="flex-1 min-w-0 space-y-1">
