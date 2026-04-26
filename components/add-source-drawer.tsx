@@ -294,7 +294,7 @@ export function AddSourceDrawer({ isOpen, onClose, editingSource }: AddSourceDra
             </Button>
           )}
         </div>
-      </div>
-    </>
-  )
+      </>
+    )
+  }
 }
