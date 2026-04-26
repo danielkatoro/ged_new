@@ -157,12 +157,6 @@ export default function SourcesEmailsPage() {
     })
   }
 
-  const handleTestConnection = (id: number) => {
-    toast.success("Connexion valide", {
-      description: "Les identifiants et paramètres sont correctes",
-    })
-  }
-
   const handleDelete = (id: number) => {
     toast.error("Source supprimée", {
       description: "Le connecteur a été définitivement supprimé",
@@ -283,7 +277,6 @@ export default function SourcesEmailsPage() {
                     onViewLogs={() => handleViewLogs(source.id)}
                     onModifyConfig={() => handleModifyConfig(source.id)}
                     onManageAlerts={() => handleManageAlerts(source.id)}
-                    onTestConnection={() => handleTestConnection(source.id)}
                     onDelete={() => handleDelete(source.id)}
                   />
                 </div>

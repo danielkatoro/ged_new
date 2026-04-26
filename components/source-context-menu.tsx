@@ -9,10 +9,11 @@ import {
   AlertCircle,
   Settings,
   Bell,
-  Wifi,
   Trash2,
+  FolderSearch,
 } from "lucide-react"
 import { useState, useRef, useEffect } from "react"
+import { useRouter } from "next/navigation"
 import { cn } from "@/lib/utils"
 import { ErrorLogsModal } from "./error-logs-modal"
 import { DeleteConfirmDialog } from "./delete-confirm-dialog"
@@ -32,7 +33,6 @@ interface SourceContextMenuProps {
   onViewLogs?: () => void
   onModifyConfig?: () => void
   onManageAlerts?: () => void
-  onTestConnection?: () => void
   onDelete?: () => void
   isPaused?: boolean
 }
@@ -45,7 +45,6 @@ export function SourceContextMenu({
   onViewLogs,
   onModifyConfig,
   onManageAlerts,
-  onTestConnection,
   onDelete,
   isPaused = false,
 }: SourceContextMenuProps) {
@@ -55,18 +54,29 @@ export function SourceContextMenu({
   const [menuPosition, setMenuPosition] = useState({ top: 0, left: 0 })
   const buttonRef = useRef<HTMLButtonElement>(null)
   const menuRef = useRef<HTMLDivElement>(null)
+  const router = useRouter()
 
   useEffect(() => {
     if (isOpen && buttonRef.current) {
       const rect = buttonRef.current.getBoundingClientRect()
       setMenuPosition({
         top: rect.bottom + 8,
-        left: rect.right - 224, // 224px = w-56
+        left: rect.right - 224,
       })
     }
   }, [isOpen])
 
   const menuItems = [
+    {
+      label: "Consulter les documents",
+      icon: FolderSearch,
+      onClick: () => {
+        router.push(`/recherche?source=${encodeURIComponent(source.address)}`)
+        setIsOpen(false)
+      },
+      color: "text-foreground",
+      section: "flux",
+    },
     {
       label: "Forcer la synchronisation",
       icon: Zap,
@@ -118,16 +128,6 @@ export function SourceContextMenu({
       },
       color: "text-foreground",
       section: "config",
-    },
-    {
-      label: "Tester la connexion",
-      icon: Wifi,
-      onClick: () => {
-        onTestConnection?.()
-        setIsOpen(false)
-      },
-      color: "text-foreground",
-      section: "maintenance",
     },
     {
       label: "Supprimer la source",
