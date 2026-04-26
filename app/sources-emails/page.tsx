@@ -9,6 +9,7 @@ import { cn } from "@/lib/utils"
 import { AddSourceDrawer } from "@/components/add-source-drawer"
 import { SourceContextMenu } from "@/components/source-context-menu"
 import { useState } from "react"
+import { useRouter } from "next/navigation"
 import { toast } from "sonner"
 
 const sources = [
@@ -55,6 +56,7 @@ const sources = [
 ]
 
 export default function SourcesEmailsPage() {
+  const router = useRouter()
   const [showAddSource, setShowAddSource] = useState(false)
   const [editingSource, setEditingSource] = useState<number | null>(null)
   const [syncingSourceId, setSyncingSourceId] = useState<number | null>(null)
@@ -157,10 +159,14 @@ export default function SourcesEmailsPage() {
     })
   }
 
-  const handleTestConnection = (id: number) => {
-    toast.success("Connexion valide", {
-      description: "Les identifiants et paramètres sont correctes",
-    })
+  const handleViewDocuments = (id: number) => {
+    const source = sources.find(s => s.id === id)
+    if (source) {
+      router.push(`/recherche?sourceEmail=${encodeURIComponent(source.address)}&sourceLabel=${encodeURIComponent(source.label)}`)
+      toast.success("Navigation vers les documents", {
+        description: `Documents de ${source.label}`,
+      })
+    }
   }
 
   const handleDelete = (id: number) => {
@@ -283,7 +289,7 @@ export default function SourcesEmailsPage() {
                     onViewLogs={() => handleViewLogs(source.id)}
                     onModifyConfig={() => handleModifyConfig(source.id)}
                     onManageAlerts={() => handleManageAlerts(source.id)}
-                    onTestConnection={() => handleTestConnection(source.id)}
+                    onViewDocuments={() => handleViewDocuments(source.id)}
                     onDelete={() => handleDelete(source.id)}
                   />
                 </div>

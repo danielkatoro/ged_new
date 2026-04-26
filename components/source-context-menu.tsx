@@ -9,7 +9,7 @@ import {
   AlertCircle,
   Settings,
   Bell,
-  Wifi,
+  FileText,
   Trash2,
 } from "lucide-react"
 import { useState, useRef, useEffect } from "react"
@@ -32,7 +32,7 @@ interface SourceContextMenuProps {
   onViewLogs?: () => void
   onModifyConfig?: () => void
   onManageAlerts?: () => void
-  onTestConnection?: () => void
+  onViewDocuments?: () => void
   onDelete?: () => void
   isPaused?: boolean
 }
@@ -45,7 +45,7 @@ export function SourceContextMenu({
   onViewLogs,
   onModifyConfig,
   onManageAlerts,
-  onTestConnection,
+  onViewDocuments,
   onDelete,
   isPaused = false,
 }: SourceContextMenuProps) {
@@ -120,10 +120,10 @@ export function SourceContextMenu({
       section: "config",
     },
     {
-      label: "Tester la connexion",
-      icon: Wifi,
+      label: "Consulter les documents",
+      icon: FileText,
       onClick: () => {
-        onTestConnection?.()
+        onViewDocuments?.()
         setIsOpen(false)
       },
       color: "text-foreground",
