@@ -290,65 +290,6 @@ export default function SourcesEmailsPage() {
               </div>
             ))}
           </div>
-                <div className="flex-1 min-w-0">
-                  <p className="text-sm font-medium text-foreground">{source.address}</p>
-                  <p className="text-xs text-muted-foreground">{source.label} · {source.direction}</p>
-                </div>
-                <div className="hidden sm:flex items-center gap-6 text-right">
-                  <div>
-                    <div className="flex items-center gap-1 justify-end">
-                      <Inbox className="h-3 w-3 text-muted-foreground" />
-                      <span className="text-xs font-medium text-foreground">{source.received}</span>
-                    </div>
-                    <p className="text-[10px] text-muted-foreground">recus</p>
-                  </div>
-                  <div>
-                    <p className="text-xs font-medium text-foreground text-right">{source.docsCreated}</p>
-                    <p className="text-[10px] text-muted-foreground">integres</p>
-                  </div>
-                  {source.errors > 0 && (
-                    <div>
-                      <p className="text-xs font-medium text-amber-500 text-right">{source.errors}</p>
-                      <p className="text-[10px] text-muted-foreground">erreurs</p>
-                    </div>
-                  )}
-                  <div>
-                    <p className="text-[10px] text-muted-foreground">{source.lastSync}</p>
-                  </div>
-                </div>
-                <div className="flex items-center gap-2">
-                  <Badge className={cn(
-                    "gap-1 text-[10px]",
-                    source.connected 
-                      ? "bg-emerald-500/15 text-emerald-700 border border-emerald-500/30" 
-                      : "bg-muted text-muted-foreground"
-                  )}>
-                    {source.connected
-                      ? <><CheckCircle2 className="h-3 w-3" /> Connectee</>
-                      : <><AlertCircle className="h-3 w-3" /> Inactive</>
-                    }
-                  </Badge>
-                  <Button variant="ghost" size="icon" className="h-7 w-7 text-muted-foreground opacity-0 group-hover:opacity-100 transition-opacity"
-                    onClick={() => handleForceSync(source.id)}
-                  >
-                    <RefreshCw className="h-3.5 w-3.5" />
-                  </Button>
-                  <SourceContextMenu
-                    source={source}
-                    isPaused={source.isPaused}
-                    onForceSync={() => handleForceSync(source.id)}
-                    onPause={() => handlePause(source.id)}
-                    onResume={() => handleResume(source.id)}
-                    onViewLogs={() => handleViewLogs(source.id)}
-                    onModifyConfig={() => handleModifyConfig(source.id)}
-                    onManageAlerts={() => handleManageAlerts(source.id)}
-                    onTestConnection={() => handleTestConnection(source.id)}
-                    onDelete={() => handleDelete(source.id)}
-                  />
-                </div>
-              </div>
-            ))}
-          </div>
         </div>
       </main>
 
