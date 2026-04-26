@@ -187,6 +187,7 @@ export function SearchPage() {
   const [dateFilter, setDateFilter] = useState("all")
   const [customDateStart, setCustomDateStart] = useState("")
   const [customDateEnd, setCustomDateEnd] = useState("")
+  const [showDateModal, setShowDateModal] = useState(false)
 
   useEffect(() => {
     const loadData = () => {
@@ -366,7 +367,9 @@ export function SearchPage() {
 
               <Select value={dateFilter} onValueChange={(value) => {
                 setDateFilter(value)
-                if (value !== "custom") {
+                if (value === "custom") {
+                  setShowDateModal(true)
+                } else {
                   setCustomDateStart("")
                   setCustomDateEnd("")
                 }
@@ -384,24 +387,6 @@ export function SearchPage() {
                   <SelectItem value="custom">Personnalisée</SelectItem>
                 </SelectContent>
               </Select>
-
-              {dateFilter === "custom" && (
-                <div className="flex items-center gap-2">
-                  <input
-                    type="date"
-                    value={customDateStart}
-                    onChange={(e) => setCustomDateStart(e.target.value)}
-                    className="h-7 text-[11px] px-2 rounded border border-border bg-background focus:ring-1 focus:ring-primary outline-none"
-                  />
-                  <span className="text-[11px] text-muted-foreground">à</span>
-                  <input
-                    type="date"
-                    value={customDateEnd}
-                    onChange={(e) => setCustomDateEnd(e.target.value)}
-                    className="h-7 text-[11px] px-2 rounded border border-border bg-background focus:ring-1 focus:ring-primary outline-none"
-                  />
-                </div>
-              )}
 
               <Select value={statusFilter} onValueChange={setStatusFilter}>
                 <SelectTrigger className="h-7 text-[11px] w-auto min-w-[110px]">
@@ -502,6 +487,98 @@ export function SearchPage() {
       {/* Panel de Détails (Conditionnel) */}
       {selectedDoc && (
         <DetailPanel doc={selectedDoc} onClose={() => setSelectedDoc(null)} />
+      )}
+
+      {/* Modal de Sélection de Plage de Date Personnalisée */}
+      {showDateModal && (
+        <>
+          <div className="fixed inset-0 bg-black/40 z-40 transition-opacity duration-200" onClick={() => {
+            setShowDateModal(false)
+            if (!customDateStart && !customDateEnd) {
+              setDateFilter("all")
+            }
+          }} />
+          <div className="fixed top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-full max-w-[380px] bg-background z-50 shadow-2xl rounded-lg animate-in fade-in duration-300 flex flex-col border border-border">
+            {/* Header du modal */}
+            <div className="flex items-center justify-between px-4 py-3 border-b border-border">
+              <h3 className="text-sm font-semibold text-foreground">Sélectionner une plage de date</h3>
+              <Button 
+                variant="ghost" 
+                size="icon" 
+                className="h-8 w-8" 
+                onClick={() => {
+                  setShowDateModal(false)
+                  if (!customDateStart && !customDateEnd) {
+                    setDateFilter("all")
+                  }
+                }}
+              >
+                <X className="h-4 w-4" />
+              </Button>
+            </div>
+
+            {/* Contenu du modal */}
+            <div className="px-4 py-4 space-y-4">
+              <div>
+                <label className="text-xs font-medium text-muted-foreground mb-2 block">Date de début</label>
+                <input
+                  type="date"
+                  value={customDateStart}
+                  onChange={(e) => setCustomDateStart(e.target.value)}
+                  className="w-full h-9 text-sm px-3 rounded border border-border bg-background hover:border-border/80 focus:border-primary focus:ring-1 focus:ring-primary outline-none transition-colors"
+                />
+              </div>
+
+              <div>
+                <label className="text-xs font-medium text-muted-foreground mb-2 block">Date de fin</label>
+                <input
+                  type="date"
+                  value={customDateEnd}
+                  onChange={(e) => setCustomDateEnd(e.target.value)}
+                  className="w-full h-9 text-sm px-3 rounded border border-border bg-background hover:border-border/80 focus:border-primary focus:ring-1 focus:ring-primary outline-none transition-colors"
+                />
+              </div>
+
+              <div className="text-xs text-muted-foreground bg-muted/50 rounded px-3 py-2">
+                {customDateStart && customDateEnd ? (
+                  <>Afficher les documents du <span className="font-medium text-foreground">{new Date(customDateStart).toLocaleDateString("fr-FR")}</span> au <span className="font-medium text-foreground">{new Date(customDateEnd).toLocaleDateString("fr-FR")}</span></>
+                ) : customDateStart ? (
+                  <>À partir du <span className="font-medium text-foreground">{new Date(customDateStart).toLocaleDateString("fr-FR")}</span></>
+                ) : customDateEnd ? (
+                  <>Jusqu&apos;au <span className="font-medium text-foreground">{new Date(customDateEnd).toLocaleDateString("fr-FR")}</span></>
+                ) : (
+                  <>Aucune date sélectionnée</>
+                )}
+              </div>
+            </div>
+
+            {/* Footer du modal */}
+            <div className="flex items-center justify-between gap-2 px-4 py-3 border-t border-border bg-muted/30">
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => {
+                  setCustomDateStart("")
+                  setCustomDateEnd("")
+                  setDateFilter("all")
+                  setShowDateModal(false)
+                }}
+                className="text-xs h-8"
+              >
+                Réinitialiser
+              </Button>
+              <Button
+                size="sm"
+                onClick={() => {
+                  setShowDateModal(false)
+                }}
+                className="text-xs h-8"
+              >
+                Appliquer
+              </Button>
+            </div>
+          </div>
+        </>
       )}
     </div>
   )
