@@ -19,6 +19,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
+import { DocumentDetailPanel } from "@/components/document-detail-panel"
 
 // Types are imported from store
 
@@ -276,6 +277,7 @@ function DirectionDetail({
     direction.armoires[0] ?? null
   )
   const [selectedDossier, setSelectedDossier] = useState<Dossier | null>(null)
+  const [selectedFile, setSelectedFile] = useState<DocFile | null>(null)
   const [search, setSearch] = useState("")
   const [view, setView] = useState<"list" | "grid">("list")
   const [armoirePanelOpen, setArmoirePanelOpen] = useState(false)
@@ -462,6 +464,7 @@ function DirectionDetail({
               dossier={selectedDossier}
               search={search}
               view={view}
+              onFileOpen={setSelectedFile}
             />
           )}
         </div>
@@ -482,6 +485,18 @@ function DirectionDetail({
         placeholder="Ex: Dossier Finance #6..."
         onSave={name => selectedArmoire && onAddDossier(direction.id, selectedArmoire.id, name)}
       />
+
+      {selectedFile && selectedDossier && selectedArmoire && (
+        <DocumentDetailPanel
+          file={selectedFile}
+          context={{
+            direction: direction.name,
+            armoire: selectedArmoire.name,
+            dossier: selectedDossier.name,
+          }}
+          onClose={() => setSelectedFile(null)}
+        />
+      )}
     </div>
   )
 }
@@ -562,10 +577,12 @@ function FileList({
   dossier,
   search,
   view,
+  onFileOpen,
 }: {
   dossier: Dossier
   search: string
   view: "list" | "grid"
+  onFileOpen: (file: DocFile) => void
 }) {
   const filtered = dossier.files.filter(f =>
     f.name.toLowerCase().includes(search.toLowerCase())
@@ -590,6 +607,7 @@ function FileList({
           {filtered.map(file => (
             <div
               key={file.id}
+              onClick={() => onFileOpen(file)}
               className="group border border-border rounded bg-card p-3 hover:border-foreground/20 hover:shadow-sm transition-all cursor-pointer"
             >
               <div className="flex items-center justify-center h-16 mb-3 bg-muted/50 rounded">
@@ -597,7 +615,7 @@ function FileList({
               </div>
               <p className="text-xs font-medium text-foreground truncate">{file.name}</p>
               <p className="text-[10px] text-muted-foreground mt-0.5">{file.size} · {file.date}</p>
-              <div className="flex gap-1 mt-2 opacity-0 group-hover:opacity-100 transition-opacity">
+              <div className="flex gap-1 mt-2 opacity-0 group-hover:opacity-100 transition-opacity" onClick={e => e.stopPropagation()}>
                 <Button variant="outline" size="icon" className="h-6 w-6 rounded">
                   <Download className="h-3 w-3" />
                 </Button>
@@ -627,8 +645,9 @@ function FileList({
         {filtered.map((file, i) => (
           <div
             key={file.id}
+            onClick={() => onFileOpen(file)}
             className={cn(
-              "grid grid-cols-[1fr_100px_120px_100px] gap-4 px-4 py-3 items-center hover:bg-muted/30 transition-colors group",
+              "grid grid-cols-[1fr_100px_120px_100px] gap-4 px-4 py-3 items-center hover:bg-muted/30 transition-colors cursor-pointer group",
               i < filtered.length - 1 && "border-b border-border"
             )}
           >

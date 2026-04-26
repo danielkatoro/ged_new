@@ -12,11 +12,12 @@ import {
   Building2,
   Trash2,
 } from "lucide-react"
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import { Button } from "@/components/ui/button"
 import { Avatar, AvatarFallback } from "@/components/ui/avatar"
 import Link from "next/link"
-import { usePathname } from "next/navigation"
+import { usePathname, useRouter } from "next/navigation"
+import { destroySession, getCurrentUser, type User } from "@/lib/auth-store"
 
 const navigation = [
   { name: "Accueil", icon: House, href: "/" },
@@ -33,7 +34,18 @@ interface SidebarProps {
 
 export function Sidebar({ onCollapsedChange }: SidebarProps) {
   const [collapsed, setCollapsed] = useState(false)
+  const [currentUser, setCurrentUser] = useState<User | null>(null)
   const pathname = usePathname()
+  const router = useRouter()
+
+  useEffect(() => {
+    setCurrentUser(getCurrentUser())
+  }, [])
+
+  const handleLogout = () => {
+    destroySession()
+    router.replace("/login")
+  }
 
   const handleToggle = () => {
     const next = !collapsed
@@ -124,13 +136,15 @@ export function Sidebar({ onCollapsedChange }: SidebarProps) {
         >
           <Avatar className="h-9 w-9 border-2 border-border flex-shrink-0">
             <AvatarFallback className="bg-muted text-foreground font-medium text-sm">
-              CB
+              {currentUser?.initials ?? "?"}
             </AvatarFallback>
           </Avatar>
           {!collapsed && (
             <div className="flex-1 min-w-0">
-              <p className="text-sm font-medium text-foreground truncate">C. Boka</p>
-              <p className="text-xs text-muted-foreground truncate">Superadmin</p>
+              <p className="text-sm font-medium text-foreground truncate">
+                {currentUser ? `${currentUser.prenom} ${currentUser.nom}` : "—"}
+              </p>
+              <p className="text-xs text-muted-foreground truncate">{currentUser?.role ?? ""}</p>
             </div>
           )}
           {!collapsed && (
@@ -138,6 +152,8 @@ export function Sidebar({ onCollapsedChange }: SidebarProps) {
               variant="ghost"
               size="icon"
               className="h-8 w-8 text-muted-foreground hover:text-foreground"
+              onClick={handleLogout}
+              title="Se déconnecter"
             >
               <LogOut className="h-4 w-4" />
             </Button>
