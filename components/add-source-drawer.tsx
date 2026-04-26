@@ -1,6 +1,6 @@
 "use client"
 
-import { X, Mail, CheckCircle2, AlertCircle, Toggle2 } from "lucide-react"
+import { X, CheckCircle2, AlertCircle } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
@@ -23,10 +23,10 @@ interface AddSourceDrawerProps {
 }
 
 const providers = [
-  { id: "gmail", name: "Gmail", icon: "📧" },
-  { id: "outlook", name: "Outlook", icon: "📨" },
-  { id: "yahoo", name: "Yahoo", icon: "📬" },
-  { id: "imap", name: "Custom IMAP", icon: "🔧" },
+  { id: "gmail", name: "Gmail", icon: "G" },
+  { id: "outlook", name: "Outlook", icon: "O" },
+  { id: "yahoo", name: "Yahoo", icon: "Y" },
+  { id: "imap", name: "Custom IMAP", icon: "@" },
 ]
 
 export function AddSourceDrawer({ isOpen, onClose, editingSource }: AddSourceDrawerProps) {
@@ -35,12 +35,15 @@ export function AddSourceDrawer({ isOpen, onClose, editingSource }: AddSourceDra
     isEditing ? "configuration" : "provider"
   )
   const [selectedProvider, setSelectedProvider] = useState(isEditing ? "gmail" : "")
-  const [email, setEmail] = useState(isEditing ? editingSource.address : "")
-  const [autoTrigger, setAutoTrigger] = useState(isEditing ? editingSource.autoTrigger : false)
-  const [selectedArmoire, setSelectedArmoire] = useState(isEditing ? editingSource.armoire : "")
-  const [selectedDirection, setSelectedDirection] = useState(isEditing ? editingSource.direction : "")
+  const [email, setEmail] = useState(isEditing ? editingSource?.address ?? "" : "")
+  const [autoTrigger, setAutoTrigger] = useState(isEditing ? editingSource?.autoTrigger ?? false : false)
+  const [selectedArmoire, setSelectedArmoire] = useState(isEditing ? editingSource?.armoire ?? "" : "")
+  const [selectedDirection, setSelectedDirection] = useState(isEditing ? editingSource?.direction ?? "" : "")
+
+  const stepIndex = ["provider", "connection", "configuration"].indexOf(step)
 
   const handleBack = () => {
+    if (isEditing) { onClose(); return }
     if (step === "connection") setStep("provider")
     else if (step === "configuration") setStep("connection")
   }
@@ -52,7 +55,7 @@ export function AddSourceDrawer({ isOpen, onClose, editingSource }: AddSourceDra
   }
 
   const handleClose = () => {
-    setStep("provider")
+    setStep(isEditing ? "configuration" : "provider")
     setSelectedProvider("")
     setEmail("")
     setAutoTrigger(false)
@@ -61,13 +64,9 @@ export function AddSourceDrawer({ isOpen, onClose, editingSource }: AddSourceDra
     onClose()
   }
 
-  const handleSuccess = () => {
-    handleClose()
-  }
-
-  const isProviderValid = selectedProvider
-  const isConnectionValid = email && email.includes("@")
-  const isConfigurationValid = selectedDirection && selectedArmoire
+  const isProviderValid = !!selectedProvider
+  const isConnectionValid = !!(email && email.includes("@"))
+  const isConfigurationValid = !!(selectedDirection && selectedArmoire)
 
   return (
     <>
@@ -88,40 +87,46 @@ export function AddSourceDrawer({ isOpen, onClose, editingSource }: AddSourceDra
         )}
       >
         {/* Header */}
-        <div className="flex items-center justify-between px-6 py-4 border-b border-border">
+        <div className="flex items-center justify-between px-6 py-4 border-b border-border flex-shrink-0">
           <div>
             <h2 className="text-lg font-semibold text-foreground">
               {isEditing ? "Modifier la source" : "Ajouter une source"}
             </h2>
             <p className="text-xs text-muted-foreground mt-1">
-              {isEditing ? "Mettez à jour les paramètres" : `Etape ${["provider", "connection", "configuration"].includes(step) ? (["provider", "connection", "configuration"].indexOf(step) + 1) : 3} sur 3`}
+              {isEditing
+                ? "Mettez a jour les parametres"
+                : step === "success"
+                ? "Etape 3 sur 3"
+                : `Etape ${stepIndex + 1} sur 3`}
             </p>
           </div>
-          <Button
-            variant="ghost"
-            size="icon"
-            className="h-8 w-8"
-            onClick={handleClose}
-          >
-            <X className="h-4 w-4" />
-          </Button>
-        </div>
-          <Button
-            variant="ghost"
-            size="icon"
-            className="h-8 w-8 text-muted-foreground hover:text-foreground"
-            onClick={handleClose}
-          >
+          <Button variant="ghost" size="icon" className="h-8 w-8" onClick={handleClose}>
             <X className="h-4 w-4" />
           </Button>
         </div>
 
+        {/* Step indicators */}
+        {!isEditing && step !== "success" && (
+          <div className="flex gap-1 px-6 pt-4 flex-shrink-0">
+            {["provider", "connection", "configuration"].map((s, i) => (
+              <div
+                key={s}
+                className={cn(
+                  "h-1 flex-1 rounded-full transition-colors",
+                  i <= stepIndex ? "bg-foreground" : "bg-border"
+                )}
+              />
+            ))}
+          </div>
+        )}
+
         {/* Content */}
         <div className="flex-1 overflow-y-auto p-6 space-y-6">
-          {/* Step 1: Provider Selection */}
+
+          {/* Step 1: Provider */}
           {step === "provider" && (
             <div className="space-y-4">
-              <p className="text-sm text-muted-foreground">Sélectionnez votre fournisseur de messagerie:</p>
+              <p className="text-sm text-muted-foreground">Selectionnez votre fournisseur de messagerie:</p>
               <div className="grid grid-cols-2 gap-3">
                 {providers.map((provider) => (
                   <button
@@ -131,10 +136,10 @@ export function AddSourceDrawer({ isOpen, onClose, editingSource }: AddSourceDra
                       "p-4 rounded-lg border-2 transition-all text-center space-y-2",
                       selectedProvider === provider.id
                         ? "border-foreground bg-muted/50"
-                        : "border-border hover:border-border/60 hover:bg-muted/30"
+                        : "border-border hover:border-foreground/30 hover:bg-muted/30"
                     )}
                   >
-                    <span className="text-3xl block">{provider.icon}</span>
+                    <span className="text-2xl font-bold block text-foreground">{provider.icon}</span>
                     <span className="text-sm font-medium text-foreground">{provider.name}</span>
                   </button>
                 ))}
@@ -146,7 +151,7 @@ export function AddSourceDrawer({ isOpen, onClose, editingSource }: AddSourceDra
           {step === "connection" && (
             <div className="space-y-4">
               <div>
-                <Label className="text-sm font-medium text-foreground mb-2 block">Email</Label>
+                <Label className="text-sm font-medium text-foreground mb-2 block">Adresse email</Label>
                 <Input
                   type="email"
                   placeholder="votre.email@example.com"
@@ -155,15 +160,11 @@ export function AddSourceDrawer({ isOpen, onClose, editingSource }: AddSourceDra
                   className="h-10 text-sm rounded-lg"
                 />
               </div>
-
-              <div className="space-y-3 mt-6">
-                <p className="text-sm text-muted-foreground">Cliquez sur le bouton ci-dessous pour autoriser Akieni GED à accéder à votre messagerie:</p>
-                <Button
-                  className="w-full h-10 text-sm font-medium rounded-lg"
-                  onClick={() => {
-                    // Simulated authorization
-                  }}
-                >
+              <div className="space-y-3 mt-4">
+                <p className="text-sm text-muted-foreground">
+                  Cliquez sur le bouton ci-dessous pour autoriser Akieni GED a acceder a votre messagerie:
+                </p>
+                <Button variant="outline" className="w-full h-10 text-sm font-medium rounded-lg">
                   Autoriser Akieni GED
                 </Button>
               </div>
@@ -175,41 +176,41 @@ export function AddSourceDrawer({ isOpen, onClose, editingSource }: AddSourceDra
             <div className="space-y-4">
               <div>
                 <Label className="text-sm font-medium text-foreground mb-2 block">Direction</Label>
-                <Select value={selectedDirection} onValueChange={setSelectedDirection}>
+                <Select value={selectedDirection} onValueChange={(v) => { setSelectedDirection(v); setSelectedArmoire("") }}>
                   <SelectTrigger className="h-10 text-sm rounded-lg">
-                    <SelectValue placeholder="Sélectionner une direction" />
+                    <SelectValue placeholder="Selectionner une direction" />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="finance">Finance</SelectItem>
-                    <SelectItem value="rh">RH</SelectItem>
-                    <SelectItem value="juridique">Juridique</SelectItem>
+                    <SelectItem value="Finance">Finance</SelectItem>
+                    <SelectItem value="RH">RH</SelectItem>
+                    <SelectItem value="Juridique">Juridique</SelectItem>
                   </SelectContent>
                 </Select>
               </div>
 
               <div>
                 <Label className="text-sm font-medium text-foreground mb-2 block">Armoire de destination</Label>
-                <Select value={selectedArmoire} onValueChange={setSelectedArmoire}>
+                <Select value={selectedArmoire} onValueChange={setSelectedArmoire} disabled={!selectedDirection}>
                   <SelectTrigger className="h-10 text-sm rounded-lg">
-                    <SelectValue placeholder="Sélectionner une armoire" />
+                    <SelectValue placeholder="Selectionner une armoire" />
                   </SelectTrigger>
                   <SelectContent>
-                    {selectedDirection === "finance" && (
+                    {selectedDirection === "Finance" && (
                       <>
-                        <SelectItem value="factures">Factures</SelectItem>
-                        <SelectItem value="devis">Devis</SelectItem>
+                        <SelectItem value="Factures">Finance &gt; Factures</SelectItem>
+                        <SelectItem value="Devis">Finance &gt; Devis</SelectItem>
                       </>
                     )}
-                    {selectedDirection === "rh" && (
+                    {selectedDirection === "RH" && (
                       <>
-                        <SelectItem value="contrats">Contrats</SelectItem>
-                        <SelectItem value="dossiers">Dossiers</SelectItem>
+                        <SelectItem value="Contrats">RH &gt; Contrats</SelectItem>
+                        <SelectItem value="Dossiers">RH &gt; Dossiers</SelectItem>
                       </>
                     )}
-                    {selectedDirection === "juridique" && (
+                    {selectedDirection === "Juridique" && (
                       <>
-                        <SelectItem value="contrats">Contrats</SelectItem>
-                        <SelectItem value="litiges">Litiges</SelectItem>
+                        <SelectItem value="Contrats">Juridique &gt; Contrats</SelectItem>
+                        <SelectItem value="Litiges">Juridique &gt; Litiges</SelectItem>
                       </>
                     )}
                   </SelectContent>
@@ -237,25 +238,25 @@ export function AddSourceDrawer({ isOpen, onClose, editingSource }: AddSourceDra
               <Alert className="border-amber-200 bg-amber-50 text-amber-900">
                 <AlertCircle className="h-4 w-4 text-amber-600" />
                 <AlertDescription className="text-xs">
-                  Seuls les fichiers PDF, Docs, XLS, PNG et JPG seront importés.
+                  Seuls les fichiers PDF, Docs, XLS, PNG et JPG seront importes.
                 </AlertDescription>
               </Alert>
             </div>
           )}
 
-          {/* Success State */}
+          {/* Success */}
           {step === "success" && (
-            <div className="flex flex-col items-center justify-center h-full gap-4 py-12">
+            <div className="flex flex-col items-center justify-center h-full gap-4 py-16">
               <div className="relative w-20 h-20">
                 <div className="absolute inset-0 bg-green-100 rounded-full animate-pulse" />
                 <div className="relative h-full flex items-center justify-center">
-                  <CheckCircle2 className="h-16 w-16 text-green-600 animate-bounce" />
+                  <CheckCircle2 className="h-16 w-16 text-green-600" />
                 </div>
               </div>
               <div className="text-center space-y-2">
-                <h3 className="text-lg font-semibold text-foreground">Source connectée avec succès!</h3>
+                <h3 className="text-lg font-semibold text-foreground">Source connectee avec succes!</h3>
                 <p className="text-sm text-muted-foreground">
-                  Votre source de messagerie est maintenant configurée et prête à recevoir les documents.
+                  Votre source de messagerie est maintenant configuree et prete a recevoir les documents.
                 </p>
               </div>
             </div>
@@ -263,7 +264,7 @@ export function AddSourceDrawer({ isOpen, onClose, editingSource }: AddSourceDra
         </div>
 
         {/* Footer */}
-        <div className="border-t border-border bg-muted/30 px-6 py-4 flex gap-3">
+        <div className="border-t border-border bg-muted/30 px-6 py-4 flex gap-3 flex-shrink-0">
           {step !== "success" ? (
             <>
               <Button
@@ -271,7 +272,7 @@ export function AddSourceDrawer({ isOpen, onClose, editingSource }: AddSourceDra
                 className="flex-1 h-10 text-sm font-medium rounded-lg"
                 onClick={step === "provider" && !isEditing ? handleClose : handleBack}
               >
-                {step === "provider" && !isEditing ? "Annuler" : "Précédent"}
+                {step === "provider" && !isEditing ? "Annuler" : "Precedent"}
               </Button>
               <Button
                 className="flex-1 h-10 text-sm font-medium rounded-lg"
@@ -286,10 +287,7 @@ export function AddSourceDrawer({ isOpen, onClose, editingSource }: AddSourceDra
               </Button>
             </>
           ) : (
-            <Button
-              className="w-full h-10 text-sm font-medium rounded-lg"
-              onClick={handleSuccess}
-            >
+            <Button className="w-full h-10 text-sm font-medium rounded-lg" onClick={handleClose}>
               Fermer
             </Button>
           )}

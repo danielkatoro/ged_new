@@ -1,7 +1,7 @@
 "use client"
 
 import { useState, useEffect } from "react"
-import { useRouter } from "next/navigation"
+import { useRouter, useSearchParams } from "next/navigation"
 import {
   Search, FileText, Download, Eye, Bookmark, BookmarkCheck,
   X, Mail, GitBranch, Calendar, ChevronDown, SlidersHorizontal,
@@ -174,6 +174,7 @@ function DetailPanel({ doc, onClose }: { doc: Doc; onClose: () => void }) {
 
 export function SearchPage() {
   const router = useRouter()
+  const searchParams = useSearchParams()
   const [allDocs, setAllDocs] = useState<Doc[]>([])
   const [query, setQuery] = useState("")
   const [armoireFilter, setArmoireFilter] = useState("all")
@@ -188,6 +189,9 @@ export function SearchPage() {
   const [customDateStart, setCustomDateStart] = useState("")
   const [customDateEnd, setCustomDateEnd] = useState("")
   const [showDateModal, setShowDateModal] = useState(false)
+  const [sourceFilter, setSourceFilter] = useState<string | null>(
+    searchParams.get("source")
+  )
 
   useEffect(() => {
     const loadData = () => {
@@ -283,7 +287,8 @@ export function SearchPage() {
       }
     }
     
-    return matchQuery && matchArmoire && matchType && matchStatus && matchDate
+    const matchSource = !sourceFilter || doc.source === "email"
+    return matchQuery && matchArmoire && matchType && matchStatus && matchDate && matchSource
   })
 
   const handleSave = () => {
@@ -335,6 +340,28 @@ export function SearchPage() {
               <span className="hidden sm:inline">{saveSuccess ? "Sauvé" : "Sauver"}</span>
             </Button>
           </div>
+
+          {/* Pastille filtre source email */}
+          {sourceFilter && (
+            <div className="flex items-center gap-2 py-1">
+              <div className="flex items-center gap-1.5 bg-primary/10 border border-primary/20 text-primary text-[11px] font-medium px-2.5 py-1 rounded-full">
+                <Mail className="h-3 w-3" />
+                <span>Source : {sourceFilter}</span>
+                <button
+                  onClick={() => {
+                    setSourceFilter(null)
+                    router.replace("/recherche")
+                  }}
+                  className="ml-1 hover:bg-primary/20 rounded-full p-0.5 transition-colors"
+                >
+                  <X className="h-2.5 w-2.5" />
+                </button>
+              </div>
+              <span className="text-[11px] text-muted-foreground">
+                {filtered.length} document{filtered.length !== 1 ? "s" : ""} trouvé{filtered.length !== 1 ? "s" : ""}
+              </span>
+            </div>
+          )}
 
           {/* Panel Filtres */}
           {showFilters && (
