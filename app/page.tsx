@@ -5,6 +5,7 @@ import { UploadZone } from "@/components/upload-zone"
 import { DocumentsTable } from "@/components/documents-table"
 import { CabinetsPanel } from "@/components/cabinets-panel"
 import { PendingPanel } from "@/components/pending-panel"
+import { UploadDrawer } from "@/components/upload-drawer"
 
 export default function DashboardPage() {
   return (
@@ -23,6 +24,7 @@ export default function DashboardPage() {
           </div>
         </div>
       </main>
+      <UploadDrawer />
     </Shell>
   )
 }

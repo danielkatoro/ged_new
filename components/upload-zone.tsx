@@ -5,6 +5,7 @@ import { Button } from "@/components/ui/button"
 import { useState, useCallback, useRef, useEffect } from "react"
 import { cn } from "@/lib/utils"
 import { DocumentPanel } from "@/components/document-panel"
+import { uploadManager } from "@/lib/upload-manager"
 
 interface RecentDocument {
   id: string
@@ -15,19 +16,10 @@ interface RecentDocument {
   status: "En attente" | "En validation" | "Approuve" | "Rejete"
 }
 
-const PROGRESS_STEPS = [
-  { label: "Uploading...", duration: 1000 },
-  { label: "OCR Analysis...", duration: 1500 },
-  { label: "Extracting Metadata...", duration: 500 },
-]
-
 export function UploadZone() {
   const [isDragging, setIsDragging] = useState(false)
   const [isPanelOpen, setIsPanelOpen] = useState(false)
   const [selectedFile, setSelectedFile] = useState<{ name: string; url: string | null; type: string; file: File | null } | null>(null)
-  const [isUploading, setIsUploading] = useState(false)
-  const [currentStep, setCurrentStep] = useState(0)
-  const [progress, setProgress] = useState(0)
   const [recentDocuments, setRecentDocuments] = useState<RecentDocument[]>([])
   const fileInputRef = useRef<HTMLInputElement>(null)
 
@@ -45,43 +37,35 @@ export function UploadZone() {
 
   // Save recent documents to localStorage
   const saveToRecent = (doc: RecentDocument) => {
-    const updated = [doc, ...recentDocuments.slice(0, 9)] // Keep only 10 most recent
+    const updated = [doc, ...recentDocuments.slice(0, 9)]
     setRecentDocuments(updated)
     localStorage.setItem('recentDocuments', JSON.stringify(updated))
   }
 
-  // Simulate upload progress
-  const simulateUpload = (file: File) => {
-    setIsUploading(true)
-    setCurrentStep(0)
-    setProgress(0)
+  // Handle file upload with chunks
+  const handleUpload = (file: File) => {
+    const fileId = `${Date.now()}-${Math.random()}`
+    
+    // Add to recent documents immediately
+    const newDoc: RecentDocument = {
+      id: fileId,
+      name: file.name,
+      type: file.type.split('/')[1].toUpperCase() || 'FILE',
+      size: `${(file.size / 1024 / 1024).toFixed(1)} MB`,
+      date: new Date().toLocaleDateString('fr-FR'),
+      status: 'En attente'
+    }
+    saveToRecent(newDoc)
 
-    let totalDuration = 0
-    PROGRESS_STEPS.forEach(step => totalDuration += step.duration)
+    // Start chunked upload in background
+    uploadManager.uploadFile(file, fileId)
 
-    PROGRESS_STEPS.forEach((step, index) => {
-      setTimeout(() => {
-        setCurrentStep(index)
-        setProgress((index + 1) / PROGRESS_STEPS.length * 100)
-      }, PROGRESS_STEPS.slice(0, index + 1).reduce((sum, s) => sum + s.duration, 0))
-    })
-
-    // After all steps complete, open verification panel
-    setTimeout(() => {
-      setIsUploading(false)
+    // Also show panel for first file
+    if (!isPanelOpen) {
+      const url = URL.createObjectURL(file)
+      setSelectedFile({ name: file.name, url, type: file.type, file })
       setIsPanelOpen(true)
-
-      // Add to recent documents
-      const newDoc: RecentDocument = {
-        id: Date.now().toString(),
-        name: file.name,
-        type: file.type.split('/')[1].toUpperCase() || 'FILE',
-        size: `${(file.size / 1024 / 1024).toFixed(1)} MB`,
-        date: new Date().toLocaleDateString('fr-FR'),
-        status: 'En attente'
-      }
-      saveToRecent(newDoc)
-    }, totalDuration)
+    }
   }
 
   const handleDragOver = useCallback((e: React.DragEvent) => {
@@ -99,10 +83,7 @@ export function UploadZone() {
     setIsDragging(false)
     const files = e.dataTransfer.files
     if (files.length > 0) {
-      const file = files[0]
-      const url = URL.createObjectURL(file)
-      setSelectedFile({ name: file.name, url, type: file.type, file })
-      simulateUpload(file)
+      Array.from(files).forEach(file => handleUpload(file))
     }
   }, [])
 
@@ -113,10 +94,7 @@ export function UploadZone() {
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = e.target.files
     if (files && files.length > 0) {
-      const file = files[0]
-      const url = URL.createObjectURL(file)
-      setSelectedFile({ name: file.name, url, type: file.type, file })
-      simulateUpload(file)
+      Array.from(files).forEach(file => handleUpload(file))
     }
   }
 
@@ -187,51 +165,6 @@ export function UploadZone() {
           </div>
         </div>
       </div>
-
-      {/* Progress Overlay */}
-      {isUploading && (
-        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-40 flex items-center justify-center">
-          <div className="bg-background rounded-2xl p-8 max-w-md w-full mx-4 shadow-2xl border border-border">
-            <div className="text-center space-y-6">
-              <div className="h-16 w-16 rounded-2xl bg-primary/10 flex items-center justify-center mx-auto">
-                <Upload className="h-8 w-8 text-primary animate-pulse" />
-              </div>
-
-              <div className="space-y-2">
-                <h3 className="text-lg font-semibold text-foreground">Traitement du document</h3>
-                <p className="text-sm text-muted-foreground">{PROGRESS_STEPS[currentStep]?.label}</p>
-              </div>
-
-              <div className="space-y-3">
-                <div className="w-full bg-muted rounded-full h-2">
-                  <div
-                    className="bg-primary h-2 rounded-full transition-all duration-300 ease-out"
-                    style={{ width: `${progress}%` }}
-                  />
-                </div>
-
-                <div className="flex justify-between text-xs text-muted-foreground">
-                  {PROGRESS_STEPS.map((step, index) => (
-                    <div key={index} className={cn(
-                      "flex items-center gap-1",
-                      index <= currentStep ? "text-primary" : "text-muted-foreground"
-                    )}>
-                      {index < currentStep ? (
-                        <CheckCircle className="h-3 w-3" />
-                      ) : index === currentStep ? (
-                        <Clock className="h-3 w-3 animate-spin" />
-                      ) : (
-                        <div className="h-3 w-3 rounded-full border border-current" />
-                      )}
-                      <span className="hidden sm:inline">{step.label}</span>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
 
       {/* Recent Documents Table */}
       {recentDocuments.length > 0 && (
