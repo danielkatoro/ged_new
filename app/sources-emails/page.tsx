@@ -56,6 +56,8 @@ const sources = [
 
 export default function SourcesEmailsPage() {
   const [showAddSource, setShowAddSource] = useState(false)
+  const [editingSource, setEditingSource] = useState<number | null>(null)
+  const [syncingSourceId, setSyncingSourceId] = useState<number | null>(null)
   const [sources, setSources] = useState([
     {
       id: 1,
@@ -67,7 +69,9 @@ export default function SourcesEmailsPage() {
       errors: 3,
       lastSync: "Il y a 5min",
       direction: "Finance",
+      armoire: "Factures",
       isPaused: false,
+      autoTrigger: true,
     },
     {
       id: 2,
@@ -79,7 +83,9 @@ export default function SourcesEmailsPage() {
       errors: 0,
       lastSync: "Il y a 12min",
       direction: "RH",
+      armoire: "Contrats",
       isPaused: false,
+      autoTrigger: true,
     },
     {
       id: 3,
@@ -91,7 +97,9 @@ export default function SourcesEmailsPage() {
       errors: 2,
       lastSync: "Il y a 1h",
       direction: "Juridique",
+      armoire: "Contrats",
       isPaused: false,
+      autoTrigger: false,
     },
     {
       id: 4,
@@ -103,7 +111,9 @@ export default function SourcesEmailsPage() {
       errors: 0,
       lastSync: "Jamais connecte",
       direction: "Direction Generale",
+      armoire: "Divers",
       isPaused: false,
+      autoTrigger: true,
     },
   ])
   const totalReceived = sources.reduce((a, s) => a + s.received, 0)
@@ -111,9 +121,11 @@ export default function SourcesEmailsPage() {
   const totalErrors = sources.reduce((a, s) => a + s.errors, 0)
 
   const handleForceSync = (id: number) => {
-    toast.success("Synchronisation forcée en cours...", {
-      description: "La source est en cours de vérification",
+    setSyncingSourceId(id)
+    toast.success("Synchronisation en cours...", {
+      description: "Vérification des nouveaux emails",
     })
+    setTimeout(() => setSyncingSourceId(null), 3000)
   }
 
   const handlePause = (id: number) => {
@@ -131,15 +143,12 @@ export default function SourcesEmailsPage() {
   }
 
   const handleViewLogs = (id: number) => {
-    toast.info("Affichage des logs d'erreurs", {
-      description: "Ouverture du visualiseur de logs",
-    })
+    // Le modal est géré dans le composant SourceContextMenu
   }
 
   const handleModifyConfig = (id: number) => {
-    toast.info("Modification de la configuration", {
-      description: "Ouverture du formulaire de configuration",
-    })
+    setEditingSource(id)
+    setShowAddSource(true)
   }
 
   const handleManageAlerts = (id: number) => {
@@ -196,16 +205,91 @@ export default function SourcesEmailsPage() {
             </Button>
           </div>
           <div className="divide-y divide-border">
-            {sources.map((source, i) => (
-              <div key={i} className="flex items-center gap-4 px-4 py-3 hover:bg-muted/40 transition-colors group">
-                <div className={cn(
-                  "flex h-8 w-8 items-center justify-center rounded flex-shrink-0 transition-colors",
-                  source.connected
-                    ? "bg-muted group-hover:bg-foreground group-hover:text-background"
-                    : "bg-muted/50 text-muted-foreground"
-                )}>
-                  <Mail className="h-4 w-4" />
+            {sources.map((source) => (
+              <div
+                key={source.id}
+                className={cn(
+                  "px-4 py-3 flex items-start justify-between group",
+                  syncingSourceId === source.id && "bg-muted/40 animate-pulse"
+                )}
+              >
+                <div className="flex items-start gap-3 flex-1 min-w-0">
+                  <div className={cn(
+                    "h-10 w-10 rounded-lg flex items-center justify-center flex-shrink-0 mt-0.5",
+                    source.connected ? "bg-blue-500/10" : "bg-muted"
+                  )}>
+                    <Mail className={cn("h-5 w-5", source.connected ? "text-blue-500" : "text-muted-foreground")} />
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm font-semibold text-foreground line-clamp-1">{source.label}</p>
+                    <p className="text-xs text-muted-foreground mt-0.5">{source.address}</p>
+                    <div className="flex items-center gap-2 mt-2 text-[11px]">
+                      <span className="text-muted-foreground">Derniere sync:</span>
+                      <span className="font-medium text-foreground">{source.lastSync}</span>
+                    </div>
+                  </div>
                 </div>
+
+                {/* Stats */}
+                <div className="flex items-center gap-4 ml-4 flex-shrink-0 hidden sm:flex text-[11px]">
+                  <div className="text-center">
+                    <p className="font-semibold text-foreground">{source.received}</p>
+                    <p className="text-muted-foreground">reçus</p>
+                  </div>
+                  <div className="text-center">
+                    <p className="font-semibold text-foreground">{source.docsCreated}</p>
+                    <p className="text-muted-foreground">créés</p>
+                  </div>
+                  {source.errors > 0 && (
+                    <div className="text-center">
+                      <p className="font-semibold text-amber-600">{source.errors}</p>
+                      <p className="text-muted-foreground">erreurs</p>
+                    </div>
+                  )}
+                </div>
+
+                {/* Actions */}
+                <div className="flex items-center gap-2 ml-4">
+                  <Badge className={cn(
+                    "gap-1 text-[10px]",
+                    source.isPaused
+                      ? "bg-amber-500/15 text-amber-700 border border-amber-500/30"
+                      : source.connected
+                      ? "bg-emerald-500/15 text-emerald-700 border border-emerald-500/30"
+                      : "bg-muted text-muted-foreground"
+                  )}>
+                    {source.isPaused
+                      ? <>En pause</>
+                      : source.connected
+                      ? <><CheckCircle2 className="h-3 w-3" /> Connectee</>
+                      : <><AlertCircle className="h-3 w-3" /> Inactive</>
+                    }
+                  </Badge>
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className="h-7 w-7 text-muted-foreground opacity-0 group-hover:opacity-100 transition-opacity"
+                    onClick={() => handleForceSync(source.id)}
+                    disabled={syncingSourceId === source.id}
+                  >
+                    <RefreshCw className={cn("h-3.5 w-3.5", syncingSourceId === source.id && "animate-spin")} />
+                  </Button>
+                  <SourceContextMenu
+                    source={source}
+                    isPaused={source.isPaused}
+                    onForceSync={() => handleForceSync(source.id)}
+                    onPause={() => handlePause(source.id)}
+                    onResume={() => handleResume(source.id)}
+                    onViewLogs={() => handleViewLogs(source.id)}
+                    onModifyConfig={() => handleModifyConfig(source.id)}
+                    onManageAlerts={() => handleManageAlerts(source.id)}
+                    onTestConnection={() => handleTestConnection(source.id)}
+                    onDelete={() => handleDelete(source.id)}
+                  />
+                </div>
+              </div>
+            ))}
+          </div>
                 <div className="flex-1 min-w-0">
                   <p className="text-sm font-medium text-foreground">{source.address}</p>
                   <p className="text-xs text-muted-foreground">{source.label} · {source.direction}</p>
@@ -268,8 +352,15 @@ export default function SourcesEmailsPage() {
         </div>
       </main>
 
-      {/* Add Source Drawer */}
-      <AddSourceDrawer isOpen={showAddSource} onClose={() => setShowAddSource(false)} />
+      {/* Add/Edit Source Drawer */}
+      <AddSourceDrawer
+        isOpen={showAddSource}
+        onClose={() => {
+          setShowAddSource(false)
+          setEditingSource(null)
+        }}
+        editingSource={editingSource ? sources.find(s => s.id === editingSource) : undefined}
+      />
     </Shell>
   )
 }

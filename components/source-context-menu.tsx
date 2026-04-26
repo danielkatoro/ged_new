@@ -11,16 +11,20 @@ import {
   Bell,
   Wifi,
   Trash2,
-  ChevronDown
 } from "lucide-react"
-import { useState } from "react"
+import { useState, useRef, useEffect } from "react"
 import { cn } from "@/lib/utils"
+import { ErrorLogsModal } from "./error-logs-modal"
+import { DeleteConfirmDialog } from "./delete-confirm-dialog"
 
 interface SourceContextMenuProps {
   source: {
+    id: number
     address: string
+    label: string
     connected: boolean
     errors: number
+    isPaused: boolean
   }
   onForceSync?: () => void
   onPause?: () => void
@@ -46,6 +50,21 @@ export function SourceContextMenu({
   isPaused = false,
 }: SourceContextMenuProps) {
   const [isOpen, setIsOpen] = useState(false)
+  const [showErrorLogs, setShowErrorLogs] = useState(false)
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false)
+  const [menuPosition, setMenuPosition] = useState({ top: 0, left: 0 })
+  const buttonRef = useRef<HTMLButtonElement>(null)
+  const menuRef = useRef<HTMLDivElement>(null)
+
+  useEffect(() => {
+    if (isOpen && buttonRef.current) {
+      const rect = buttonRef.current.getBoundingClientRect()
+      setMenuPosition({
+        top: rect.bottom + 8,
+        left: rect.right - 224, // 224px = w-56
+      })
+    }
+  }, [isOpen])
 
   const menuItems = [
     {
@@ -72,12 +91,13 @@ export function SourceContextMenu({
       label: "Voir les logs d'erreurs",
       icon: AlertCircle,
       onClick: () => {
-        onViewLogs?.()
+        setShowErrorLogs(true)
         setIsOpen(false)
       },
       color: source.errors > 0 ? "text-amber-500" : "text-foreground",
       highlight: source.errors > 0,
       section: "flux",
+      disabled: source.errors === 0,
     },
     {
       label: "Modifier la configuration",
@@ -113,7 +133,7 @@ export function SourceContextMenu({
       label: "Supprimer la source",
       icon: Trash2,
       onClick: () => {
-        onDelete?.()
+        setShowDeleteConfirm(true)
         setIsOpen(false)
       },
       color: "text-destructive",
@@ -122,8 +142,9 @@ export function SourceContextMenu({
   ]
 
   return (
-    <div className="relative">
+    <div>
       <Button
+        ref={buttonRef}
         variant="ghost"
         size="icon"
         className="h-7 w-7 text-muted-foreground"
@@ -138,7 +159,14 @@ export function SourceContextMenu({
             className="fixed inset-0 z-30"
             onClick={() => setIsOpen(false)}
           />
-          <div className="absolute right-0 top-full mt-1 w-56 bg-card border border-border rounded-lg shadow-lg z-40 py-1">
+          <div
+            ref={menuRef}
+            className="fixed w-56 bg-card border border-border rounded-lg shadow-xl z-50 py-1"
+            style={{
+              top: `${menuPosition.top}px`,
+              left: `${menuPosition.left}px`,
+            }}
+          >
             {/* Flux Management */}
             <div>
               {menuItems
@@ -149,9 +177,11 @@ export function SourceContextMenu({
                     <button
                       key={i}
                       onClick={item.onClick}
+                      disabled={item.disabled}
                       className={cn(
                         "w-full flex items-center gap-3 px-3 py-2 text-sm hover:bg-muted/60 transition-colors",
-                        item.highlight && "bg-muted/40"
+                        item.highlight && "bg-muted/40",
+                        item.disabled && "opacity-50 cursor-not-allowed"
                       )}
                     >
                       <Icon className={cn("h-4 w-4", item.color)} />
@@ -196,11 +226,11 @@ export function SourceContextMenu({
                       onClick={item.onClick}
                       className={cn(
                         "w-full flex items-center gap-3 px-3 py-2 text-sm hover:bg-muted/60 transition-colors",
-                        item.section === "maintenance" && i === 1 && "hover:bg-destructive/10"
+                        item.color === "text-destructive" && "hover:bg-destructive/10"
                       )}
                     >
                       <Icon className={cn("h-4 w-4", item.color)} />
-                      <span className={cn("text-foreground", item.section === "maintenance" && i === 1 && "text-destructive")}>
+                      <span className={cn("text-foreground", item.color === "text-destructive" && "text-destructive")}>
                         {item.label}
                       </span>
                     </button>
@@ -210,6 +240,25 @@ export function SourceContextMenu({
           </div>
         </>
       )}
+
+      {/* Error Logs Modal */}
+      <ErrorLogsModal
+        isOpen={showErrorLogs}
+        onClose={() => setShowErrorLogs(false)}
+        sourceName={source.label}
+        errors={source.errors}
+      />
+
+      {/* Delete Confirmation Dialog */}
+      <DeleteConfirmDialog
+        isOpen={showDeleteConfirm}
+        onConfirm={() => {
+          onDelete?.()
+          setShowDeleteConfirm(false)
+        }}
+        onCancel={() => setShowDeleteConfirm(false)}
+        sourceName={source.label}
+      />
     </div>
   )
 }

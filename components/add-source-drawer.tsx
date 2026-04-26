@@ -12,6 +12,14 @@ import { useState } from "react"
 interface AddSourceDrawerProps {
   isOpen: boolean
   onClose: () => void
+  editingSource?: {
+    id: number
+    label: string
+    address: string
+    direction: string
+    armoire: string
+    autoTrigger: boolean
+  }
 }
 
 const providers = [
@@ -21,13 +29,16 @@ const providers = [
   { id: "imap", name: "Custom IMAP", icon: "🔧" },
 ]
 
-export function AddSourceDrawer({ isOpen, onClose }: AddSourceDrawerProps) {
-  const [step, setStep] = useState<"provider" | "connection" | "configuration" | "success">("provider")
-  const [selectedProvider, setSelectedProvider] = useState("")
-  const [email, setEmail] = useState("")
-  const [autoTrigger, setAutoTrigger] = useState(false)
-  const [selectedArmoire, setSelectedArmoire] = useState("")
-  const [selectedDirection, setSelectedDirection] = useState("")
+export function AddSourceDrawer({ isOpen, onClose, editingSource }: AddSourceDrawerProps) {
+  const isEditing = !!editingSource
+  const [step, setStep] = useState<"provider" | "connection" | "configuration" | "success">(
+    isEditing ? "configuration" : "provider"
+  )
+  const [selectedProvider, setSelectedProvider] = useState(isEditing ? "gmail" : "")
+  const [email, setEmail] = useState(isEditing ? editingSource.address : "")
+  const [autoTrigger, setAutoTrigger] = useState(isEditing ? editingSource.autoTrigger : false)
+  const [selectedArmoire, setSelectedArmoire] = useState(isEditing ? editingSource.armoire : "")
+  const [selectedDirection, setSelectedDirection] = useState(isEditing ? editingSource.direction : "")
 
   const handleBack = () => {
     if (step === "connection") setStep("provider")
@@ -79,14 +90,22 @@ export function AddSourceDrawer({ isOpen, onClose }: AddSourceDrawerProps) {
         {/* Header */}
         <div className="flex items-center justify-between px-6 py-4 border-b border-border">
           <div>
-            <h2 className="text-lg font-semibold text-foreground">Ajouter une source</h2>
-            <p className="text-xs text-muted-foreground mt-0.5">
-              {step === "provider" && "Etape 1: Choisir un fournisseur"}
-              {step === "connection" && "Etape 2: Connexion"}
-              {step === "configuration" && "Etape 3: Configuration"}
-              {step === "success" && "Source connectée"}
+            <h2 className="text-lg font-semibold text-foreground">
+              {isEditing ? "Modifier la source" : "Ajouter une source"}
+            </h2>
+            <p className="text-xs text-muted-foreground mt-1">
+              {isEditing ? "Mettez à jour les paramètres" : `Etape ${["provider", "connection", "configuration"].includes(step) ? (["provider", "connection", "configuration"].indexOf(step) + 1) : 3} sur 3`}
             </p>
           </div>
+          <Button
+            variant="ghost"
+            size="icon"
+            className="h-8 w-8"
+            onClick={handleClose}
+          >
+            <X className="h-4 w-4" />
+          </Button>
+        </div>
           <Button
             variant="ghost"
             size="icon"
@@ -250,20 +269,20 @@ export function AddSourceDrawer({ isOpen, onClose }: AddSourceDrawerProps) {
               <Button
                 variant="outline"
                 className="flex-1 h-10 text-sm font-medium rounded-lg"
-                onClick={step === "provider" ? handleClose : handleBack}
+                onClick={step === "provider" && !isEditing ? handleClose : handleBack}
               >
-                {step === "provider" ? "Annuler" : "Précédent"}
+                {step === "provider" && !isEditing ? "Annuler" : "Précédent"}
               </Button>
               <Button
                 className="flex-1 h-10 text-sm font-medium rounded-lg"
                 disabled={
-                  (step === "provider" && !isProviderValid) ||
-                  (step === "connection" && !isConnectionValid) ||
+                  (!isEditing && step === "provider" && !isProviderValid) ||
+                  (!isEditing && step === "connection" && !isConnectionValid) ||
                   (step === "configuration" && !isConfigurationValid)
                 }
                 onClick={handleNext}
               >
-                {step === "configuration" ? "Terminer" : "Suivant"}
+                {step === "configuration" ? (isEditing ? "Enregistrer" : "Terminer") : "Suivant"}
               </Button>
             </>
           ) : (
