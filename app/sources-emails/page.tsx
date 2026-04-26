@@ -1,9 +1,13 @@
+"use client"
+
 import { Shell } from "@/components/shell"
 import { Header } from "@/components/header"
 import { Mail, Plus, CheckCircle2, AlertCircle, Inbox, RefreshCw, MoreHorizontal } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { cn } from "@/lib/utils"
+import { AddSourceDrawer } from "@/components/add-source-drawer"
+import { useState } from "react"
 
 const sources = [
   {
@@ -49,6 +53,7 @@ const sources = [
 ]
 
 export default function SourcesEmailsPage() {
+  const [showAddSource, setShowAddSource] = useState(false)
   const totalReceived = sources.reduce((a, s) => a + s.received, 0)
   const totalDocs = sources.reduce((a, s) => a + s.docsCreated, 0)
   const totalErrors = sources.reduce((a, s) => a + s.errors, 0)
@@ -82,7 +87,7 @@ export default function SourcesEmailsPage() {
               <h2 className="text-sm font-semibold text-foreground">Sources configurees</h2>
               <p className="text-[11px] text-muted-foreground mt-0.5">Les pieces jointes valides sont integrees automatiquement en moins de 5 min</p>
             </div>
-            <Button size="sm" className="h-8 gap-1.5 text-xs rounded">
+            <Button size="sm" className="h-8 gap-1.5 text-xs rounded" onClick={() => setShowAddSource(true)}>
               <Plus className="h-3.5 w-3.5" />
               Ajouter une source
             </Button>
@@ -146,6 +151,9 @@ export default function SourcesEmailsPage() {
           </div>
         </div>
       </main>
+
+      {/* Add Source Drawer */}
+      <AddSourceDrawer isOpen={showAddSource} onClose={() => setShowAddSource(false)} />
     </Shell>
   )
 }
