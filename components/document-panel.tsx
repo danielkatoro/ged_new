@@ -1,6 +1,6 @@
 "use client"
 
-import { X, FileText, Check, Calendar, Building2, Hash } from "lucide-react"
+import { X, FileText, Check, Calendar, Building2, Hash, Eye } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
@@ -8,6 +8,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { cn } from "@/lib/utils"
 import { useState, useEffect } from "react"
 import { useRouter } from "next/navigation"
+import { toast } from "sonner"
 
 interface DocumentPanelProps {
   isOpen: boolean
@@ -245,8 +246,28 @@ export function DocumentPanel({ isOpen, onClose, fileName = "Document.pdf", file
               <Button
                 className="flex-1 h-11 text-sm font-medium rounded-xl"
                 onClick={() => {
-                  // Rediriger vers la direction avec les paramètres sélectionnés
-                  router.push(`/direction?direction=${selectedDirection}&armoire=${selectedArmoire}`)
+                  // Construire le chemin d'accès
+                  const path = `${selectedDirection} / ${selectedArmoire}`
+                  
+                  // Afficher le toast avec l'action
+                  toast.success(`Document classé avec succès dans: ${path}`, {
+                    description: "Le document est maintenant accessible à sa destination",
+                    action: {
+                      label: (
+                        <div className="flex items-center gap-1.5">
+                          <Eye className="h-4 w-4" />
+                          Voir
+                        </div>
+                      ),
+                      onClick: () => {
+                        // Rediriger vers la destination
+                        router.push(`/direction?direction=${selectedDirection}&armoire=${selectedArmoire}`)
+                      }
+                    },
+                    duration: 5000
+                  })
+                  
+                  // Fermer le panel
                   onClose()
                 }}
               >
