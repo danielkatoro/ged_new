@@ -132,7 +132,7 @@ function DirectionGrid({
       {/* Top bar */}
       <div className="flex items-center justify-between mb-6">
         <span className="inline-flex items-center px-3 py-1 rounded bg-muted text-sm font-medium text-foreground">
-          Directions
+          _
         </span>
         <Button
           className="h-9 gap-2 text-sm rounded"
