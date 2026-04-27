@@ -25,7 +25,6 @@ const navigation = [
   { name: "Directions", icon: Building2, href: "/direction" },
   { name: "Sources Emails", icon: Mail, href: "/sources-emails" },
   { name: "Types de Docs", icon: Tag, href: "/types-docs" },
-  { name: "Corbeille", icon: Trash2, href: "/corbeille" },
 ]
 
 interface SidebarProps {
@@ -115,6 +114,18 @@ export function Sidebar({ onCollapsedChange }: SidebarProps) {
 
       {/* Footer */}
       <div className="border-t border-border p-3 space-y-1">
+        <Link
+          href="/corbeille"
+          className={cn(
+            "flex items-center gap-3 rounded-lg px-3 py-2 text-sm transition-all",
+            pathname === "/corbeille"
+              ? "bg-muted text-foreground"
+              : "text-muted-foreground hover:bg-muted/50 hover:text-foreground"
+          )}
+        >
+          <Trash2 className="h-[18px] w-[18px] flex-shrink-0" />
+          {!collapsed && <span>Corbeille</span>}
+        </Link>
         <Link
           href="/parametres"
           className={cn(

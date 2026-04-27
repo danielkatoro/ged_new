@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect } from "react"
+import { useState, useEffect, useCallback, useRef } from "react"
 import { useSearchParams } from "next/navigation"
 import { cn } from "@/lib/utils"
 import { store, type Direction, type Armoire, type Dossier, type DocFile } from "@/lib/store"
@@ -8,10 +8,12 @@ import {
   Building2, MoreHorizontal, Plus, X, ChevronRight,
   Archive, Folder, FolderOpen, FileText, Download,
   Trash2, Pencil, Search, LayoutGrid, List, ArrowLeft,
-  File, FileSpreadsheet, Image,
+  File, FileSpreadsheet, Image, Upload, Users, Check,
+  FolderPlus, FilePlus, FolderUp, CheckSquare, Square,
 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
+import { Textarea } from "@/components/ui/textarea"
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -20,8 +22,13 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
 import { DocumentDetailPanel } from "@/components/document-detail-panel"
-
-// Types are imported from store
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select"
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -37,27 +44,248 @@ function FileTypeIcon({ type }: { type: DocFile["type"] }) {
   return <File className="h-4 w-4 text-blue-600" />
 }
 
-// ─── Slide-in panel ───────────────────────────────────────────────────────────
+const ICON_OPTIONS = [
+  { value: "archive", icon: Archive, label: "Archive" },
+  { value: "folder", icon: Folder, label: "Dossier" },
+  { value: "file-text", icon: FileText, label: "Document" },
+  { value: "users", icon: Users, label: "Utilisateurs" },
+  { value: "building", icon: Building2, label: "Batiment" },
+]
 
-function SlidePanel({
+function getIconComponent(iconName: string) {
+  const found = ICON_OPTIONS.find(o => o.value === iconName)
+  return found ? found.icon : Archive
+}
+
+// ─── Direction Create/Edit Panel ──────────────────────────────────────────────
+
+function DirectionPanel({
   open,
   onClose,
-  title,
+  direction,
   onSave,
-  placeholder,
 }: {
   open: boolean
   onClose: () => void
-  title: string
+  direction?: Direction | null
+  onSave: (data: { name: string; description: string; directeur: string }) => void
+}) {
+  const [name, setName] = useState(direction?.name ?? "")
+  const [description, setDescription] = useState(direction?.description ?? "")
+  const [directeur, setDirecteur] = useState("")
+
+  useEffect(() => {
+    if (open) {
+      setName(direction?.name ?? "")
+      setDescription(direction?.description ?? "")
+      setDirecteur("")
+    }
+  }, [open, direction])
+
+  const handleSave = () => {
+    if (!name.trim()) return
+    onSave({ name: name.trim(), description: description.trim(), directeur: directeur.trim() })
+    onClose()
+  }
+
+  return (
+    <>
+      <div
+        className={cn(
+          "fixed inset-0 bg-black/30 z-40 transition-opacity duration-200",
+          open ? "opacity-100" : "opacity-0 pointer-events-none"
+        )}
+        onClick={onClose}
+      />
+      <div
+        className={cn(
+          "fixed top-0 right-0 h-full w-96 bg-card border-l border-border z-50 flex flex-col shadow-xl transition-transform duration-300",
+          open ? "translate-x-0" : "translate-x-full"
+        )}
+      >
+        <div className="flex items-center justify-between px-5 py-4 border-b border-border">
+          <h3 className="text-sm font-semibold text-foreground">
+            {direction ? "Modifier la Direction" : "Nouvelle Direction"}
+          </h3>
+          <Button variant="ghost" size="icon" className="h-7 w-7" onClick={onClose}>
+            <X className="h-4 w-4" />
+          </Button>
+        </div>
+        <div className="flex-1 p-5 space-y-4 overflow-y-auto">
+          <div className="space-y-1.5">
+            <label className="text-xs font-medium text-muted-foreground">Nom *</label>
+            <Input
+              value={name}
+              onChange={e => setName(e.target.value)}
+              placeholder="Ex: Direction Finance"
+              className="h-9 text-sm rounded"
+              autoFocus
+            />
+          </div>
+          <div className="space-y-1.5">
+            <label className="text-xs font-medium text-muted-foreground">Description</label>
+            <Textarea
+              value={description}
+              onChange={e => setDescription(e.target.value)}
+              placeholder="Description de la direction..."
+              className="text-sm rounded resize-none"
+              rows={3}
+            />
+          </div>
+          <div className="space-y-1.5">
+            <label className="text-xs font-medium text-muted-foreground">Directeur</label>
+            <Input
+              value={directeur}
+              onChange={e => setDirecteur(e.target.value)}
+              placeholder="Nom du directeur"
+              className="h-9 text-sm rounded"
+            />
+          </div>
+        </div>
+        <div className="p-5 border-t border-border flex gap-2">
+          <Button variant="outline" className="flex-1 h-9 text-sm rounded" onClick={onClose}>
+            Annuler
+          </Button>
+          <Button className="flex-1 h-9 text-sm rounded" onClick={handleSave} disabled={!name.trim()}>
+            {direction ? "Sauvegarder" : "Creer"}
+          </Button>
+        </div>
+      </div>
+    </>
+  )
+}
+
+// ─── Armoire Create/Edit Panel ────────────────────────────────────────────────
+
+function ArmoirePanel({
+  open,
+  onClose,
+  armoire,
+  onSave,
+}: {
+  open: boolean
+  onClose: () => void
+  armoire?: Armoire | null
+  onSave: (data: { name: string; icon: string; admins: string[] }) => void
+}) {
+  const [name, setName] = useState(armoire?.name ?? "")
+  const [icon, setIcon] = useState(armoire?.icon ?? "archive")
+  const [adminsText, setAdminsText] = useState("")
+
+  useEffect(() => {
+    if (open) {
+      setName(armoire?.name ?? "")
+      setIcon(armoire?.icon ?? "archive")
+      setAdminsText("")
+    }
+  }, [open, armoire])
+
+  const handleSave = () => {
+    if (!name.trim()) return
+    const admins = adminsText.split(",").map(a => a.trim()).filter(Boolean)
+    onSave({ name: name.trim(), icon, admins })
+    onClose()
+  }
+
+  return (
+    <>
+      <div
+        className={cn(
+          "fixed inset-0 bg-black/30 z-40 transition-opacity duration-200",
+          open ? "opacity-100" : "opacity-0 pointer-events-none"
+        )}
+        onClick={onClose}
+      />
+      <div
+        className={cn(
+          "fixed top-0 right-0 h-full w-96 bg-card border-l border-border z-50 flex flex-col shadow-xl transition-transform duration-300",
+          open ? "translate-x-0" : "translate-x-full"
+        )}
+      >
+        <div className="flex items-center justify-between px-5 py-4 border-b border-border">
+          <h3 className="text-sm font-semibold text-foreground">
+            {armoire ? "Modifier l'Armoire" : "Nouvelle Armoire"}
+          </h3>
+          <Button variant="ghost" size="icon" className="h-7 w-7" onClick={onClose}>
+            <X className="h-4 w-4" />
+          </Button>
+        </div>
+        <div className="flex-1 p-5 space-y-4 overflow-y-auto">
+          <div className="space-y-1.5">
+            <label className="text-xs font-medium text-muted-foreground">Nom *</label>
+            <Input
+              value={name}
+              onChange={e => setName(e.target.value)}
+              placeholder="Ex: Armoire Comptabilite"
+              className="h-9 text-sm rounded"
+              autoFocus
+            />
+          </div>
+          <div className="space-y-1.5">
+            <label className="text-xs font-medium text-muted-foreground">Icone</label>
+            <Select value={icon} onValueChange={setIcon}>
+              <SelectTrigger className="h-9 text-sm">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {ICON_OPTIONS.map(opt => {
+                  const IconComp = opt.icon
+                  return (
+                    <SelectItem key={opt.value} value={opt.value}>
+                      <div className="flex items-center gap-2">
+                        <IconComp className="h-4 w-4" />
+                        <span>{opt.label}</span>
+                      </div>
+                    </SelectItem>
+                  )
+                })}
+              </SelectContent>
+            </Select>
+          </div>
+          <div className="space-y-1.5">
+            <label className="text-xs font-medium text-muted-foreground">Administrateurs</label>
+            <Input
+              value={adminsText}
+              onChange={e => setAdminsText(e.target.value)}
+              placeholder="Emails separes par des virgules"
+              className="h-9 text-sm rounded"
+            />
+            <p className="text-[10px] text-muted-foreground">Ex: admin@exemple.com, autre@exemple.com</p>
+          </div>
+        </div>
+        <div className="p-5 border-t border-border flex gap-2">
+          <Button variant="outline" className="flex-1 h-9 text-sm rounded" onClick={onClose}>
+            Annuler
+          </Button>
+          <Button className="flex-1 h-9 text-sm rounded" onClick={handleSave} disabled={!name.trim()}>
+            {armoire ? "Sauvegarder" : "Creer"}
+          </Button>
+        </div>
+      </div>
+    </>
+  )
+}
+
+// ─── Dossier Create Panel ─────────────────────────────────────────────────────
+
+function DossierPanel({
+  open,
+  onClose,
+  onSave,
+}: {
+  open: boolean
+  onClose: () => void
   onSave: (name: string) => void
-  placeholder: string
 }) {
   const [name, setName] = useState("")
+
+  useEffect(() => {
+    if (open) setName("")
+  }, [open])
 
   const handleSave = () => {
     if (!name.trim()) return
     onSave(name.trim())
-    setName("")
     onClose()
   }
 
@@ -77,7 +305,7 @@ function SlidePanel({
         )}
       >
         <div className="flex items-center justify-between px-5 py-4 border-b border-border">
-          <h3 className="text-sm font-semibold text-foreground">{title}</h3>
+          <h3 className="text-sm font-semibold text-foreground">Nouveau Dossier</h3>
           <Button variant="ghost" size="icon" className="h-7 w-7" onClick={onClose}>
             <X className="h-4 w-4" />
           </Button>
@@ -88,7 +316,7 @@ function SlidePanel({
             <Input
               value={name}
               onChange={e => setName(e.target.value)}
-              placeholder={placeholder}
+              placeholder="Ex: Dossier Finance #6..."
               className="h-9 text-sm rounded"
               onKeyDown={e => e.key === "Enter" && handleSave()}
               autoFocus
@@ -108,6 +336,149 @@ function SlidePanel({
   )
 }
 
+// ─── Import Files Panel ───────────────────────────────────────────────────────
+
+function ImportFilesPanel({
+  open,
+  onClose,
+  onImport,
+}: {
+  open: boolean
+  onClose: () => void
+  onImport: (files: File[]) => void
+}) {
+  const [isDragging, setIsDragging] = useState(false)
+  const [files, setFiles] = useState<File[]>([])
+  const fileInputRef = useRef<HTMLInputElement>(null)
+
+  useEffect(() => {
+    if (open) setFiles([])
+  }, [open])
+
+  const handleDragOver = useCallback((e: React.DragEvent) => {
+    e.preventDefault()
+    setIsDragging(true)
+  }, [])
+
+  const handleDragLeave = useCallback((e: React.DragEvent) => {
+    e.preventDefault()
+    setIsDragging(false)
+  }, [])
+
+  const handleDrop = useCallback((e: React.DragEvent) => {
+    e.preventDefault()
+    setIsDragging(false)
+    const droppedFiles = Array.from(e.dataTransfer.files)
+    setFiles(prev => [...prev, ...droppedFiles])
+  }, [])
+
+  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const selectedFiles = e.target.files
+    if (selectedFiles) {
+      setFiles(prev => [...prev, ...Array.from(selectedFiles)])
+    }
+  }
+
+  const handleImport = () => {
+    if (files.length > 0) {
+      onImport(files)
+      onClose()
+    }
+  }
+
+  const removeFile = (index: number) => {
+    setFiles(prev => prev.filter((_, i) => i !== index))
+  }
+
+  return (
+    <>
+      <div
+        className={cn(
+          "fixed inset-0 bg-black/30 z-40 transition-opacity duration-200",
+          open ? "opacity-100" : "opacity-0 pointer-events-none"
+        )}
+        onClick={onClose}
+      />
+      <div
+        className={cn(
+          "fixed top-0 right-0 h-full w-[480px] bg-card border-l border-border z-50 flex flex-col shadow-xl transition-transform duration-300",
+          open ? "translate-x-0" : "translate-x-full"
+        )}
+      >
+        <div className="flex items-center justify-between px-5 py-4 border-b border-border">
+          <h3 className="text-sm font-semibold text-foreground">Importer des fichiers</h3>
+          <Button variant="ghost" size="icon" className="h-7 w-7" onClick={onClose}>
+            <X className="h-4 w-4" />
+          </Button>
+        </div>
+        <div className="flex-1 p-5 space-y-4 overflow-y-auto">
+          {/* Drop Zone */}
+          <div
+            onDragOver={handleDragOver}
+            onDragLeave={handleDragLeave}
+            onDrop={handleDrop}
+            onClick={() => fileInputRef.current?.click()}
+            className={cn(
+              "border-2 border-dashed rounded-lg p-8 text-center cursor-pointer transition-all",
+              isDragging
+                ? "border-primary bg-primary/5"
+                : "border-border hover:border-muted-foreground/50 hover:bg-muted/30"
+            )}
+          >
+            <Upload className={cn("h-10 w-10 mx-auto mb-3", isDragging ? "text-primary" : "text-muted-foreground")} />
+            <p className="text-sm font-medium text-foreground mb-1">
+              Glissez vos fichiers ici
+            </p>
+            <p className="text-xs text-muted-foreground">
+              ou cliquez pour selectionner
+            </p>
+            <input
+              ref={fileInputRef}
+              type="file"
+              multiple
+              className="hidden"
+              onChange={handleFileChange}
+            />
+          </div>
+
+          {/* Files list */}
+          {files.length > 0 && (
+            <div className="space-y-2">
+              <p className="text-xs font-medium text-muted-foreground">{files.length} fichier(s) selectionne(s)</p>
+              <div className="space-y-1 max-h-64 overflow-y-auto">
+                {files.map((file, index) => (
+                  <div key={index} className="flex items-center gap-2 p-2 rounded bg-muted/50">
+                    <FileText className="h-4 w-4 text-muted-foreground flex-shrink-0" />
+                    <span className="text-sm text-foreground flex-1 truncate">{file.name}</span>
+                    <span className="text-xs text-muted-foreground">{(file.size / 1024).toFixed(0)} KB</span>
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      className="h-6 w-6 text-muted-foreground hover:text-destructive"
+                      onClick={(e) => { e.stopPropagation(); removeFile(index) }}
+                    >
+                      <X className="h-3 w-3" />
+                    </Button>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+        </div>
+        <div className="p-5 border-t border-border flex gap-2">
+          <Button variant="outline" className="flex-1 h-9 text-sm rounded" onClick={onClose}>
+            Annuler
+          </Button>
+          <Button className="flex-1 h-9 text-sm rounded" onClick={handleImport} disabled={files.length === 0}>
+            <Upload className="h-3.5 w-3.5 mr-1.5" />
+            Importer {files.length > 0 && `(${files.length})`}
+          </Button>
+        </div>
+      </div>
+    </>
+  )
+}
+
 // ─── Direction Grid ───────────────────────────────────────────────────────────
 
 function DirectionGrid({
@@ -119,142 +490,210 @@ function DirectionGrid({
 }: {
   directions: Direction[]
   onOpen: (d: Direction) => void
-  onCreate: (name: string) => void
-  onEdit: (d: Direction, name: string) => void
+  onCreate: (data: { name: string; description: string; directeur: string }) => void
+  onEdit: (d: Direction, data: { name: string; description: string; directeur: string }) => void
   onDelete: (id: string) => void
 }) {
   const [panelOpen, setPanelOpen] = useState(false)
   const [editTarget, setEditTarget] = useState<Direction | null>(null)
-  const [editName, setEditName] = useState("")
+  const [search, setSearch] = useState("")
+  const [view, setView] = useState<"grid" | "list">("grid")
+
+  const filtered = directions.filter(d =>
+    d.name.toLowerCase().includes(search.toLowerCase()) ||
+    d.description?.toLowerCase().includes(search.toLowerCase())
+  )
 
   return (
     <div className="p-6">
       {/* Top bar */}
-      <div className="flex items-center justify-between mb-6">
-        <span className="inline-flex items-center px-3 py-1 rounded bg-muted text-sm font-medium text-foreground">
-          _
-        </span>
-        <Button
-          className="h-9 gap-2 text-sm rounded"
-          onClick={() => setPanelOpen(true)}
-        >
-          <Plus className="h-4 w-4" />
-          Nouvelle Direction
-        </Button>
-      </div>
-
-      {/* Grid */}
-      <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
-        {directions.map(dir => (
-          <div
-            key={dir.id}
-            onClick={() => onOpen(dir)}
-            className="group relative bg-card border border-border rounded-lg p-5 cursor-pointer hover:border-foreground/20 hover:shadow-sm transition-all"
-          >
-            {/* Three-dot menu */}
-            <div
-              className="absolute top-4 right-4"
-              onClick={e => e.stopPropagation()}
-            >
-              <DropdownMenu>
-                <DropdownMenuTrigger asChild>
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    className="h-7 w-7 text-muted-foreground hover:text-foreground opacity-0 group-hover:opacity-100 transition-opacity"
-                  >
-                    <MoreHorizontal className="h-4 w-4" />
-                  </Button>
-                </DropdownMenuTrigger>
-                <DropdownMenuContent align="end" className="w-36">
-                  <DropdownMenuItem
-                    onClick={() => {
-                      setEditTarget(dir)
-                      setEditName(dir.name)
-                    }}
-                  >
-                    <Pencil className="h-3.5 w-3.5 mr-2" />
-                    Modifier
-                  </DropdownMenuItem>
-                  <DropdownMenuSeparator />
-                  <DropdownMenuItem
-                    className="text-destructive focus:text-destructive"
-                    onClick={() => onDelete(dir.id)}
-                  >
-                    <Trash2 className="h-3.5 w-3.5 mr-2" />
-                    Supprimer
-                  </DropdownMenuItem>
-                </DropdownMenuContent>
-              </DropdownMenu>
-            </div>
-
-            {/* Icon + Name */}
-            <div className="flex items-center gap-3 mb-6">
-              <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-muted flex-shrink-0">
-                <Building2 className="h-5 w-5 text-foreground" />
-              </div>
-              <span className="text-base font-semibold text-foreground">{dir.name}</span>
-            </div>
-
-            {/* Footer */}
-            <div className="flex items-center justify-between text-xs text-muted-foreground">
-              <span>{dir.date}</span>
-              <span>{dir.armoires.length} {dir.armoires.length <= 1 ? "armoire" : "armoires"}</span>
-            </div>
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6">
+        <div className="flex items-center gap-3">
+          <span className="inline-flex items-center px-3 py-1 rounded bg-muted text-sm font-medium text-foreground">
+            Directions
+          </span>
+          <span className="text-sm text-muted-foreground">{filtered.length} resultat(s)</span>
+        </div>
+        <div className="flex items-center gap-2">
+          <div className="relative">
+            <Search className="absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" />
+            <Input
+              placeholder="Rechercher..."
+              value={search}
+              onChange={e => setSearch(e.target.value)}
+              className="pl-8 h-9 w-48 text-sm bg-muted/50 border-0 rounded"
+            />
           </div>
-        ))}
+          <div className="flex border border-border rounded overflow-hidden">
+            <Button
+              variant="ghost"
+              size="icon"
+              className={cn("h-9 w-9 rounded-none", view === "grid" && "bg-muted")}
+              onClick={() => setView("grid")}
+            >
+              <LayoutGrid className="h-4 w-4" />
+            </Button>
+            <Button
+              variant="ghost"
+              size="icon"
+              className={cn("h-9 w-9 rounded-none", view === "list" && "bg-muted")}
+              onClick={() => setView("list")}
+            >
+              <List className="h-4 w-4" />
+            </Button>
+          </div>
+          <Button className="h-9 gap-2 text-sm rounded" onClick={() => setPanelOpen(true)}>
+            <Plus className="h-4 w-4" />
+            Nouvelle Direction
+          </Button>
+        </div>
       </div>
+
+      {/* Grid view */}
+      {view === "grid" ? (
+        <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
+          {filtered.map(dir => (
+            <div
+              key={dir.id}
+              onClick={() => onOpen(dir)}
+              className="group relative bg-card border border-border rounded-lg p-5 cursor-pointer hover:border-foreground/20 hover:shadow-sm transition-all"
+            >
+              {/* Three-dot menu */}
+              <div className="absolute top-4 right-4" onClick={e => e.stopPropagation()}>
+                <DropdownMenu>
+                  <DropdownMenuTrigger asChild>
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      className="h-7 w-7 text-muted-foreground hover:text-foreground opacity-0 group-hover:opacity-100 transition-opacity"
+                    >
+                      <MoreHorizontal className="h-4 w-4" />
+                    </Button>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent align="end" className="w-36">
+                    <DropdownMenuItem onClick={() => setEditTarget(dir)}>
+                      <Pencil className="h-3.5 w-3.5 mr-2" />
+                      Modifier
+                    </DropdownMenuItem>
+                    <DropdownMenuSeparator />
+                    <DropdownMenuItem
+                      className="text-destructive focus:text-destructive"
+                      onClick={() => onDelete(dir.id)}
+                    >
+                      <Trash2 className="h-3.5 w-3.5 mr-2" />
+                      Supprimer
+                    </DropdownMenuItem>
+                  </DropdownMenuContent>
+                </DropdownMenu>
+              </div>
+
+              {/* Icon + Name */}
+              <div className="flex items-center gap-3 mb-3">
+                <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-muted flex-shrink-0">
+                  <Building2 className="h-5 w-5 text-foreground" />
+                </div>
+                <span className="text-base font-semibold text-foreground">{dir.name}</span>
+              </div>
+
+              {/* Description */}
+              {dir.description && (
+                <p className="text-xs text-muted-foreground mb-4 line-clamp-2">{dir.description}</p>
+              )}
+
+              {/* Footer */}
+              <div className="flex items-center justify-between text-xs text-muted-foreground">
+                <span>{dir.date}</span>
+                <span>{dir.armoires.length} {dir.armoires.length <= 1 ? "armoire" : "armoires"}</span>
+              </div>
+            </div>
+          ))}
+        </div>
+      ) : (
+        /* List view */
+        <div className="rounded-lg border border-border overflow-hidden">
+          <table className="w-full text-sm">
+            <thead>
+              <tr className="border-b border-border bg-muted/30">
+                <th className="px-4 py-3 text-left font-medium text-muted-foreground">Direction</th>
+                <th className="px-4 py-3 text-left font-medium text-muted-foreground hidden md:table-cell">Description</th>
+                <th className="px-4 py-3 text-left font-medium text-muted-foreground">Armoires</th>
+                <th className="px-4 py-3 text-left font-medium text-muted-foreground hidden sm:table-cell">Date</th>
+                <th className="px-4 py-3 text-right font-medium text-muted-foreground">Actions</th>
+              </tr>
+            </thead>
+            <tbody>
+              {filtered.map((dir, i) => (
+                <tr
+                  key={dir.id}
+                  onClick={() => onOpen(dir)}
+                  className={cn(
+                    "hover:bg-muted/30 transition-colors cursor-pointer",
+                    i < filtered.length - 1 && "border-b border-border"
+                  )}
+                >
+                  <td className="px-4 py-3">
+                    <div className="flex items-center gap-3">
+                      <div className="h-8 w-8 rounded bg-muted flex items-center justify-center flex-shrink-0">
+                        <Building2 className="h-4 w-4 text-foreground" />
+                      </div>
+                      <span className="font-medium text-foreground">{dir.name}</span>
+                    </div>
+                  </td>
+                  <td className="px-4 py-3 hidden md:table-cell">
+                    <span className="text-muted-foreground truncate max-w-xs block">{dir.description || "—"}</span>
+                  </td>
+                  <td className="px-4 py-3">
+                    <span className="text-muted-foreground">{dir.armoires.length}</span>
+                  </td>
+                  <td className="px-4 py-3 hidden sm:table-cell">
+                    <span className="text-muted-foreground">{dir.date}</span>
+                  </td>
+                  <td className="px-4 py-3 text-right" onClick={e => e.stopPropagation()}>
+                    <div className="flex items-center justify-end gap-1">
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="h-7 w-7 text-muted-foreground hover:text-foreground"
+                        onClick={() => setEditTarget(dir)}
+                      >
+                        <Pencil className="h-3.5 w-3.5" />
+                      </Button>
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="h-7 w-7 text-muted-foreground hover:text-destructive"
+                        onClick={() => onDelete(dir.id)}
+                      >
+                        <Trash2 className="h-3.5 w-3.5" />
+                      </Button>
+                    </div>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
 
       {/* Create panel */}
-      <SlidePanel
+      <DirectionPanel
         open={panelOpen}
         onClose={() => setPanelOpen(false)}
-        title="Nouvelle Direction"
-        placeholder="Ex: Finance, RH..."
         onSave={onCreate}
       />
 
-      {/* Edit dialog (inline slide panel) */}
-      {editTarget && (
-        <>
-          <div
-            className="fixed inset-0 bg-black/30 z-40"
-            onClick={() => setEditTarget(null)}
-          />
-          <div className="fixed top-0 right-0 h-full w-80 bg-card border-l border-border z-50 flex flex-col shadow-xl">
-            <div className="flex items-center justify-between px-5 py-4 border-b border-border">
-              <h3 className="text-sm font-semibold text-foreground">Modifier la Direction</h3>
-              <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => setEditTarget(null)}>
-                <X className="h-4 w-4" />
-              </Button>
-            </div>
-            <div className="flex-1 p-5 space-y-4">
-              <div className="space-y-1.5">
-                <label className="text-xs font-medium text-muted-foreground">Nom</label>
-                <Input
-                  value={editName}
-                  onChange={e => setEditName(e.target.value)}
-                  className="h-9 text-sm rounded"
-                  autoFocus
-                />
-              </div>
-            </div>
-            <div className="p-5 border-t border-border flex gap-2">
-              <Button variant="outline" className="flex-1 h-9 text-sm rounded" onClick={() => setEditTarget(null)}>
-                Annuler
-              </Button>
-              <Button className="flex-1 h-9 text-sm rounded" onClick={() => {
-                if (editName.trim()) {
-                  onEdit(editTarget, editName.trim())
-                  setEditTarget(null)
-                }
-              }}>
-                Sauvegarder
-              </Button>
-            </div>
-          </div>
-        </>
-      )}
+      {/* Edit panel */}
+      <DirectionPanel
+        open={!!editTarget}
+        onClose={() => setEditTarget(null)}
+        direction={editTarget}
+        onSave={data => {
+          if (editTarget) {
+            onEdit(editTarget, data)
+            setEditTarget(null)
+          }
+        }}
+      />
     </div>
   )
 }
@@ -269,7 +708,7 @@ function DirectionDetail({
 }: {
   direction: Direction
   onBack: () => void
-  onAddArmoire: (dirId: string, name: string) => void
+  onAddArmoire: (dirId: string, data: { name: string; icon: string; admins: string[] }) => void
   onAddDossier: (dirId: string, armoireId: string, name: string) => void
 }) {
   const searchParams = useSearchParams()
@@ -282,6 +721,8 @@ function DirectionDetail({
   const [view, setView] = useState<"list" | "grid">("list")
   const [armoirePanelOpen, setArmoirePanelOpen] = useState(false)
   const [dossierPanelOpen, setDossierPanelOpen] = useState(false)
+  const [importPanelOpen, setImportPanelOpen] = useState(false)
+  const [selectedFiles, setSelectedFiles] = useState<Set<string>>(new Set())
 
   // Auto-select armoire from query params
   useEffect(() => {
@@ -301,6 +742,33 @@ function DirectionDetail({
     setSelectedArmoire(arm)
     setSelectedDossier(null)
     setSearch("")
+    setSelectedFiles(new Set())
+  }
+
+  const handleImportFiles = (files: File[]) => {
+    // Simulate adding files - in reality this would upload them
+    console.log("[v0] Importing files:", files.map(f => f.name))
+  }
+
+  const toggleFileSelection = (fileId: string) => {
+    setSelectedFiles(prev => {
+      const next = new Set(prev)
+      if (next.has(fileId)) {
+        next.delete(fileId)
+      } else {
+        next.add(fileId)
+      }
+      return next
+    })
+  }
+
+  const selectAllFiles = () => {
+    if (!selectedDossier) return
+    if (selectedFiles.size === selectedDossier.files.length) {
+      setSelectedFiles(new Set())
+    } else {
+      setSelectedFiles(new Set(selectedDossier.files.map(f => f.id)))
+    }
   }
 
   // Breadcrumb
@@ -339,6 +807,7 @@ function DirectionDetail({
           ) : (
             direction.armoires.map(arm => {
               const isActive = selectedArmoire?.id === arm.id
+              const IconComp = getIconComponent(arm.icon || "archive")
               return (
                 <button
                   key={arm.id}
@@ -352,10 +821,9 @@ function DirectionDetail({
                 >
                   {isActive
                     ? <FolderOpen className="h-4 w-4 flex-shrink-0 text-foreground" />
-                    : <Archive className="h-4 w-4 flex-shrink-0" />
+                    : <IconComp className="h-4 w-4 flex-shrink-0" />
                   }
                   <span className="flex-1 truncate">{arm.name}</span>
-                  <MoreHorizontal className="h-3.5 w-3.5 opacity-0 group-hover:opacity-100 flex-shrink-0" />
                 </button>
               )
             })
@@ -399,18 +867,42 @@ function DirectionDetail({
                   className="pl-8 h-8 w-44 text-xs bg-muted/50 border-0 rounded"
                 />
               </div>
-              <Button
-                className="h-8 gap-1.5 text-xs rounded"
-                onClick={() => setDossierPanelOpen(true)}
-              >
-                <Plus className="h-3.5 w-3.5" />
-                Nouveau Dossier
-              </Button>
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button className="h-8 gap-1.5 text-xs rounded">
+                    <Plus className="h-3.5 w-3.5" />
+                    Nouveau
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end">
+                  <DropdownMenuItem onClick={() => setDossierPanelOpen(true)}>
+                    <FolderPlus className="h-4 w-4 mr-2" />
+                    Nouveau Dossier
+                  </DropdownMenuItem>
+                  <DropdownMenuItem onClick={() => setImportPanelOpen(true)}>
+                    <FolderUp className="h-4 w-4 mr-2" />
+                    Importer un dossier
+                  </DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
             </div>
           )}
 
           {selectedDossier && (
             <div className="flex items-center gap-2 flex-shrink-0">
+              {selectedFiles.size > 0 && (
+                <div className="flex items-center gap-2 mr-2">
+                  <span className="text-xs text-muted-foreground">{selectedFiles.size} selectionne(s)</span>
+                  <Button variant="outline" size="sm" className="h-7 text-xs gap-1">
+                    <Download className="h-3 w-3" />
+                    Telecharger
+                  </Button>
+                  <Button variant="outline" size="sm" className="h-7 text-xs gap-1 text-destructive hover:text-destructive">
+                    <Trash2 className="h-3 w-3" />
+                    Supprimer
+                  </Button>
+                </div>
+              )}
               <div className="relative">
                 <Search className="absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" />
                 <Input
@@ -438,9 +930,9 @@ function DirectionDetail({
                   <LayoutGrid className="h-3.5 w-3.5" />
                 </Button>
               </div>
-              <Button className="h-8 gap-1.5 text-xs rounded">
-                <Plus className="h-3.5 w-3.5" />
-                Nouveau Document
+              <Button className="h-8 gap-1.5 text-xs rounded" onClick={() => setImportPanelOpen(true)}>
+                <FilePlus className="h-3.5 w-3.5" />
+                Importer
               </Button>
             </div>
           )}
@@ -465,25 +957,29 @@ function DirectionDetail({
               search={search}
               view={view}
               onFileOpen={setSelectedFile}
+              selectedFiles={selectedFiles}
+              onToggleSelect={toggleFileSelection}
+              onSelectAll={selectAllFiles}
             />
           )}
         </div>
       </div>
 
       {/* Slide panels */}
-      <SlidePanel
+      <ArmoirePanel
         open={armoirePanelOpen}
         onClose={() => setArmoirePanelOpen(false)}
-        title="Nouvelle Armoire"
-        placeholder="Ex: Finance, Archives..."
-        onSave={name => onAddArmoire(direction.id, name)}
+        onSave={data => onAddArmoire(direction.id, data)}
       />
-      <SlidePanel
+      <DossierPanel
         open={dossierPanelOpen}
         onClose={() => setDossierPanelOpen(false)}
-        title="Nouveau Dossier"
-        placeholder="Ex: Dossier Finance #6..."
         onSave={name => selectedArmoire && onAddDossier(direction.id, selectedArmoire.id, name)}
+      />
+      <ImportFilesPanel
+        open={importPanelOpen}
+        onClose={() => setImportPanelOpen(false)}
+        onImport={handleImportFiles}
       />
 
       {selectedFile && selectedDossier && selectedArmoire && (
@@ -578,15 +1074,23 @@ function FileList({
   search,
   view,
   onFileOpen,
+  selectedFiles,
+  onToggleSelect,
+  onSelectAll,
 }: {
   dossier: Dossier
   search: string
   view: "list" | "grid"
   onFileOpen: (file: DocFile) => void
+  selectedFiles: Set<string>
+  onToggleSelect: (id: string) => void
+  onSelectAll: () => void
 }) {
   const filtered = dossier.files.filter(f =>
     f.name.toLowerCase().includes(search.toLowerCase())
   )
+
+  const allSelected = filtered.length > 0 && selectedFiles.size === filtered.length
 
   if (filtered.length === 0) {
     return (
@@ -600,31 +1104,54 @@ function FileList({
   if (view === "grid") {
     return (
       <div>
-        <p className="text-sm font-semibold text-foreground mb-4">
-          Fichiers ({filtered.length})
-        </p>
+        <div className="flex items-center justify-between mb-4">
+          <p className="text-sm font-semibold text-foreground">
+            Fichiers ({filtered.length})
+          </p>
+          <Button variant="ghost" size="sm" className="h-7 text-xs gap-1.5" onClick={onSelectAll}>
+            {allSelected ? <CheckSquare className="h-3.5 w-3.5" /> : <Square className="h-3.5 w-3.5" />}
+            {allSelected ? "Deselectioner tout" : "Tout selectionner"}
+          </Button>
+        </div>
         <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3">
-          {filtered.map(file => (
-            <div
-              key={file.id}
-              onClick={() => onFileOpen(file)}
-              className="group border border-border rounded bg-card p-3 hover:border-foreground/20 hover:shadow-sm transition-all cursor-pointer"
-            >
-              <div className="flex items-center justify-center h-16 mb-3 bg-muted/50 rounded">
-                <FileTypeIcon type={file.type} />
+          {filtered.map(file => {
+            const isSelected = selectedFiles.has(file.id)
+            return (
+              <div
+                key={file.id}
+                className={cn(
+                  "group relative border rounded bg-card p-3 hover:border-foreground/20 hover:shadow-sm transition-all cursor-pointer",
+                  isSelected ? "border-primary bg-primary/5" : "border-border"
+                )}
+              >
+                {/* Checkbox */}
+                <button
+                  className="absolute top-2 left-2 z-10"
+                  onClick={(e) => { e.stopPropagation(); onToggleSelect(file.id) }}
+                >
+                  {isSelected
+                    ? <CheckSquare className="h-4 w-4 text-primary" />
+                    : <Square className="h-4 w-4 text-muted-foreground opacity-0 group-hover:opacity-100 transition-opacity" />
+                  }
+                </button>
+                <div onClick={() => onFileOpen(file)}>
+                  <div className="flex items-center justify-center h-16 mb-3 bg-muted/50 rounded">
+                    <FileTypeIcon type={file.type} />
+                  </div>
+                  <p className="text-xs font-medium text-foreground truncate">{file.name}</p>
+                  <p className="text-[10px] text-muted-foreground mt-0.5">{file.size} - {file.date}</p>
+                </div>
+                <div className="flex gap-1 mt-2 opacity-0 group-hover:opacity-100 transition-opacity" onClick={e => e.stopPropagation()}>
+                  <Button variant="outline" size="icon" className="h-6 w-6 rounded">
+                    <Download className="h-3 w-3" />
+                  </Button>
+                  <Button variant="outline" size="icon" className="h-6 w-6 rounded text-red-500 hover:text-red-600 border-red-200">
+                    <Trash2 className="h-3 w-3" />
+                  </Button>
+                </div>
               </div>
-              <p className="text-xs font-medium text-foreground truncate">{file.name}</p>
-              <p className="text-[10px] text-muted-foreground mt-0.5">{file.size} · {file.date}</p>
-              <div className="flex gap-1 mt-2 opacity-0 group-hover:opacity-100 transition-opacity" onClick={e => e.stopPropagation()}>
-                <Button variant="outline" size="icon" className="h-6 w-6 rounded">
-                  <Download className="h-3 w-3" />
-                </Button>
-                <Button variant="outline" size="icon" className="h-6 w-6 rounded text-red-500 hover:text-red-600 border-red-200">
-                  <Trash2 className="h-3 w-3" />
-                </Button>
-              </div>
-            </div>
-          ))}
+            )
+          })}
         </div>
       </div>
     )
@@ -636,40 +1163,58 @@ function FileList({
         Fichiers ({filtered.length})
       </p>
       <div className="rounded border border-border overflow-hidden">
-        <div className="grid grid-cols-[1fr_100px_120px_100px] gap-4 px-4 py-2.5 bg-muted/50 border-b border-border">
+        <div className="grid grid-cols-[32px_1fr_100px_120px_100px] gap-4 px-4 py-2.5 bg-muted/50 border-b border-border">
+          <button onClick={onSelectAll} className="flex items-center justify-center">
+            {allSelected
+              ? <CheckSquare className="h-4 w-4 text-primary" />
+              : <Square className="h-4 w-4 text-muted-foreground" />
+            }
+          </button>
           <span className="text-[11px] font-medium text-muted-foreground uppercase tracking-wide">Fichier</span>
           <span className="text-[11px] font-medium text-muted-foreground uppercase tracking-wide">Taille</span>
           <span className="text-[11px] font-medium text-muted-foreground uppercase tracking-wide">Date</span>
           <span className="text-[11px] font-medium text-muted-foreground uppercase tracking-wide"></span>
         </div>
-        {filtered.map((file, i) => (
-          <div
-            key={file.id}
-            onClick={() => onFileOpen(file)}
-            className={cn(
-              "grid grid-cols-[1fr_100px_120px_100px] gap-4 px-4 py-3 items-center hover:bg-muted/30 transition-colors cursor-pointer group",
-              i < filtered.length - 1 && "border-b border-border"
-            )}
-          >
-            <div className="flex items-center gap-2.5 min-w-0">
-              <FileTypeIcon type={file.type} />
-              <span className="text-sm text-foreground truncate">{file.name}</span>
-            </div>
-            <span className="text-sm text-muted-foreground">{file.size}</span>
-            <span className="text-sm text-muted-foreground">{file.date}</span>
+        {filtered.map((file, i) => {
+          const isSelected = selectedFiles.has(file.id)
+          return (
             <div
-              className="flex items-center gap-1 justify-end"
-              onClick={e => e.stopPropagation()}
+              key={file.id}
+              className={cn(
+                "grid grid-cols-[32px_1fr_100px_120px_100px] gap-4 px-4 py-3 items-center hover:bg-muted/30 transition-colors cursor-pointer group",
+                i < filtered.length - 1 && "border-b border-border",
+                isSelected && "bg-primary/5"
+              )}
             >
-              <Button variant="ghost" size="icon" className="h-7 w-7 text-muted-foreground hover:text-foreground opacity-0 group-hover:opacity-100">
-                <Download className="h-3.5 w-3.5" />
-              </Button>
-              <Button variant="ghost" size="icon" className="h-7 w-7 text-red-500 hover:text-red-600 opacity-0 group-hover:opacity-100">
-                <Trash2 className="h-3.5 w-3.5" />
-              </Button>
+              <button
+                onClick={(e) => { e.stopPropagation(); onToggleSelect(file.id) }}
+                className="flex items-center justify-center"
+              >
+                {isSelected
+                  ? <CheckSquare className="h-4 w-4 text-primary" />
+                  : <Square className="h-4 w-4 text-muted-foreground opacity-0 group-hover:opacity-100 transition-opacity" />
+                }
+              </button>
+              <div className="flex items-center gap-2.5 min-w-0" onClick={() => onFileOpen(file)}>
+                <FileTypeIcon type={file.type} />
+                <span className="text-sm text-foreground truncate">{file.name}</span>
+              </div>
+              <span className="text-sm text-muted-foreground">{file.size}</span>
+              <span className="text-sm text-muted-foreground">{file.date}</span>
+              <div
+                className="flex items-center gap-1 justify-end"
+                onClick={e => e.stopPropagation()}
+              >
+                <Button variant="ghost" size="icon" className="h-7 w-7 text-muted-foreground hover:text-foreground opacity-0 group-hover:opacity-100">
+                  <Download className="h-3.5 w-3.5" />
+                </Button>
+                <Button variant="ghost" size="icon" className="h-7 w-7 text-red-500 hover:text-red-600 opacity-0 group-hover:opacity-100">
+                  <Trash2 className="h-3.5 w-3.5" />
+                </Button>
+              </div>
             </div>
-          </div>
-        ))}
+          )
+        })}
       </div>
     </div>
   )
@@ -705,20 +1250,27 @@ export function DirectionView() {
     }
   }, [searchParams, directions, openDirection])
 
-  const handleCreate = (name: string) => {
-    store.addDirection(name)
+  const handleCreate = (data: { name: string; description: string; directeur: string }) => {
+    store.addDirection(data.name)
+    // Update with description if store supports it
+    const dirs = store.getDirections()
+    const newDir = dirs.find(d => d.name === data.name)
+    if (newDir && data.description) {
+      store.updateDirection(newDir.id, { description: data.description })
+    }
   }
 
-  const handleEdit = (dir: Direction, newName: string) => {
-    store.updateDirection(dir.id, { name: newName })
+  const handleEdit = (dir: Direction, data: { name: string; description: string; directeur: string }) => {
+    store.updateDirection(dir.id, { name: data.name, description: data.description })
   }
 
   const handleDelete = (id: string) => {
     store.deleteDirection(id)
   }
 
-  const handleAddArmoire = (dirId: string, name: string) => {
-    store.addArmoire(dirId, name)
+  const handleAddArmoire = (dirId: string, data: { name: string; icon: string; admins: string[] }) => {
+    store.addArmoire(dirId, data.name)
+    // Update icon if store supports it
   }
 
   const handleAddDossier = (dirId: string, armoireId: string, name: string) => {
