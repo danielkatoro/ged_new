@@ -16,6 +16,11 @@ export interface DocFile {
   source: "upload" | "email" | "scan" | "workflow"
   linkedEmail?: string
   linkedWorkflow?: string
+  // Invoice / supplier fields
+  fournisseur?: string
+  montant?: number
+  numero?: string
+  ocrContent?: string  // Full-text OCR content for search
   versions: { version: number; date: string; author: string }[]
   activity: { action: string; user: string; date: string; ip?: string }[]
 }
@@ -158,6 +163,10 @@ const INITIAL_DIRECTIONS: Direction[] = [
                 tags: ["facture", "energie", "total", "2026"],
                 source: "email",
                 linkedEmail: "factures@akieni.com",
+                fournisseur: "TOTAL Energie",
+                montant: 4820.50,
+                numero: "FAC-2026-0041",
+                ocrContent: "TOTAL Energie SA - Facture numero FAC-2026-0041 - Periode avril 2026 - Consommation electrique siege 4820.50 FCFA - Client Akieni Group - TVA 18%",
                 versions: createVersions(2),
                 activity: createActivity(["Approuve", "Valide", "Cree"]),
               },
@@ -173,6 +182,7 @@ const INITIAL_DIRECTIONS: Direction[] = [
                 description: "Budget previsionnel premier trimestre 2026.",
                 tags: ["budget", "q1", "previsionnel"],
                 source: "upload",
+                ocrContent: "Budget previsionnel Q1 2026 - Charges operationnelles 12 500 000 FCFA - Investissements 3 200 000 FCFA - Masse salariale 8 450 000 FCFA",
                 versions: createVersions(3),
                 activity: createActivity(["Modifie", "Telecharge", "Cree"]),
               },
@@ -189,8 +199,88 @@ const INITIAL_DIRECTIONS: Direction[] = [
                 tags: ["rapport", "finance", "q1"],
                 source: "workflow",
                 linkedWorkflow: "Validation Rapports",
+                ocrContent: "Rapport financier consolide Q1 2026 - Chiffre d affaires 45 200 000 FCFA - EBITDA 12 300 000 FCFA - Resultat net 8 750 000 FCFA - Tresorerie 22 100 000 FCFA",
                 versions: createVersions(4),
                 activity: createActivity(["Approuve", "Valide", "Revise", "Cree"]),
+              },
+              {
+                id: "doc-011",
+                name: "Facture_Orange_Mar2026.pdf",
+                type: "pdf",
+                size: "890 KB",
+                date: "05-03-2026",
+                status: "Approuve",
+                confidence: 98,
+                author: "Systeme",
+                description: "Facture telephonie mobile Orange - flotte entreprise.",
+                tags: ["facture", "telecom", "orange", "2026"],
+                source: "email",
+                linkedEmail: "factures@orange.ci",
+                fournisseur: "Orange CI",
+                montant: 1250000,
+                numero: "FAC-2026-0032",
+                ocrContent: "Orange Cote d Ivoire - Facture numero FAC-2026-0032 - Flotte mobile entreprise 45 lignes - Mars 2026 - Montant HT 1 059 322 FCFA - TVA 18% 190 678 FCFA - Total TTC 1 250 000 FCFA",
+                versions: createVersions(1),
+                activity: createActivity(["Importe", "Cree"]),
+              },
+              {
+                id: "doc-012",
+                name: "Facture_Orange_Avr2026.pdf",
+                type: "pdf",
+                size: "910 KB",
+                date: "05-04-2026",
+                status: "En validation",
+                confidence: 96,
+                author: "Systeme",
+                description: "Facture telephonie mobile Orange - flotte entreprise avril 2026.",
+                tags: ["facture", "telecom", "orange", "2026"],
+                source: "email",
+                linkedEmail: "factures@orange.ci",
+                fournisseur: "Orange CI",
+                montant: 1310000,
+                numero: "FAC-2026-0041",
+                ocrContent: "Orange Cote d Ivoire - Facture numero FAC-2026-0041 - Flotte mobile entreprise 47 lignes - Avril 2026 - Montant HT 1 110 169 FCFA - TVA 18% 199 831 FCFA - Total TTC 1 310 000 FCFA",
+                versions: createVersions(1),
+                activity: createActivity(["En attente validation", "Importe"]),
+              },
+              {
+                id: "doc-013",
+                name: "Facture_MTN_Mar2026.pdf",
+                type: "pdf",
+                size: "750 KB",
+                date: "08-03-2026",
+                status: "Approuve",
+                confidence: 94,
+                author: "Systeme",
+                description: "Facture internet fibre MTN Business mars 2026.",
+                tags: ["facture", "internet", "mtn", "2026"],
+                source: "email",
+                linkedEmail: "billing@mtn.ci",
+                fournisseur: "MTN Business",
+                montant: 850000,
+                numero: "MTN-BIZ-2026-0087",
+                ocrContent: "MTN Business Cote d Ivoire - Facture MTN-BIZ-2026-0087 - Connexion fibre entreprise 1 Gbps - Mars 2026 - Abonnement mensuel 850 000 FCFA TTC",
+                versions: createVersions(1),
+                activity: createActivity(["Approuve", "Cree"]),
+              },
+              {
+                id: "doc-014",
+                name: "Facture_Ecowater_Jan2026.pdf",
+                type: "pdf",
+                size: "620 KB",
+                date: "15-01-2026",
+                status: "Approuve",
+                confidence: 99,
+                author: "Systeme",
+                description: "Facture eau et maintenance fontaines janvier 2026.",
+                tags: ["facture", "eau", "maintenance"],
+                source: "scan",
+                fournisseur: "Ecowater Services",
+                montant: 225000,
+                numero: "ECO-2026-0008",
+                ocrContent: "Ecowater Services - Facture ECO-2026-0008 - Maintenance fontaines et bonbonnes eau - Janvier 2026 - 225 000 FCFA",
+                versions: createVersions(1),
+                activity: createActivity(["Approuve", "Scanne"]),
               },
             ],
           },
@@ -782,6 +872,44 @@ class Store {
   markAllNotificationsRead() {
     this.notifications = this.notifications.map(n => ({ ...n, read: true }))
     this.notify()
+  }
+
+  // ─── Documents with context (direction + armoire + dossier info) ─────────────
+
+  getAllDocumentsWithContext() {
+    const result: (DocFile & { directionId: string; directionName: string; armoireId: string; armoireName: string; dossierId: string; dossierName: string })[] = []
+    for (const dir of this.directions) {
+      for (const arm of dir.armoires) {
+        for (const dos of arm.dossiers) {
+          for (const file of dos.files) {
+            result.push({
+              ...file,
+              directionId: dir.id,
+              directionName: dir.name,
+              armoireId: arm.id,
+              armoireName: arm.name,
+              dossierId: dos.id,
+              dossierName: dos.name,
+            })
+          }
+        }
+      }
+    }
+    return result
+  }
+
+  getFournisseurs() {
+    const set = new Set<string>()
+    for (const dir of this.directions) {
+      for (const arm of dir.armoires) {
+        for (const dos of arm.dossiers) {
+          for (const file of dos.files) {
+            if (file.fournisseur) set.add(file.fournisseur)
+          }
+        }
+      }
+    }
+    return Array.from(set).sort()
   }
 
   // ─── Stats ──────────────────────────────────────────────────────────────────

@@ -167,10 +167,10 @@ export function UploadZone() {
       </div>
 
       {/* Recent Documents Table */}
-      {recentDocuments.length > 0 && (
+      {/* {recentDocuments.length > 0 && (
         <div className="rounded-xl border border-border bg-card overflow-hidden">
           <div className="px-4 py-3 border-b border-border">
-            <h3 className="text-sm font-semibold text-foreground">Documents recents</h3>
+            <h3 className="text-sm font-semibold text-foreground">Documents chargés</h3>
           </div>
           <div className="overflow-x-auto">
             <table className="w-full">
@@ -218,7 +218,7 @@ export function UploadZone() {
             </table>
           </div>
         </div>
-      )}
+      )} */}
 
       <DocumentPanel
         isOpen={isPanelOpen}

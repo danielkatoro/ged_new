@@ -193,7 +193,7 @@ export default function SourcesEmailsPage() {
               <h2 className="text-sm font-semibold text-foreground">Sources configurees</h2>
               <p className="text-[11px] text-muted-foreground mt-0.5">Les pieces jointes valides sont integrees automatiquement en moins de 5 min</p>
             </div>
-            <Button size="sm" className="h-8 gap-1.5 text-xs rounded" onClick={() => setShowAddSource(true)}>
+            <Button size="sm" className="h-8 gap-1.5 text-xs" onClick={() => setShowAddSource(true)}>
               <Plus className="h-3.5 w-3.5" />
               Ajouter une source
             </Button>

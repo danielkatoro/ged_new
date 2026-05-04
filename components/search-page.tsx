@@ -1,611 +1,953 @@
 "use client"
 
-import { useState, useEffect } from "react"
+import { useState, useEffect, useRef, useCallback } from "react"
 import { useRouter, useSearchParams } from "next/navigation"
 import {
-  Search, FileText, Download, Eye, Bookmark, BookmarkCheck,
-  X, Mail, GitBranch, Calendar, ChevronDown, SlidersHorizontal,
-  ExternalLink, Clock, CheckCircle2, AlertCircle, XCircle,
-  Building2, Tag, Hash, User, Filter, Folder,
+  Search, FileText, Download, Eye, X, Mail, GitBranch,
+  CheckCircle2, Clock, AlertCircle, XCircle, Building2,
+  Tag, Hash, User, Filter, ChevronDown, ChevronUp,
+  FileSpreadsheet, FileImage, ArrowUpDown, ExternalLink,
+  Bookmark, BookmarkCheck, Calendar, Sparkles,
 } from "lucide-react"
 import { Input } from "@/components/ui/input"
 import { Button } from "@/components/ui/button"
+import { Badge } from "@/components/ui/badge"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { cn } from "@/lib/utils"
 import Link from "next/link"
-import { store, type DocFile } from "@/lib/store"
+import { store } from "@/lib/store"
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
-type DocStatus = DocFile["status"]
+type DocStatus = "En attente" | "En validation" | "Approuve" | "Rejete"
 
-interface Doc extends DocFile {
-  title: string
+type SearchDoc = {
+  id: string
+  name: string
+  type: "pdf" | "docx" | "xlsx" | "img"
+  size: string
+  date: string
+  status: DocStatus
+  confidence: number
+  author: string
+  description: string
+  tags: string[]
+  source: string
+  linkedEmail?: string
+  linkedWorkflow?: string
+  fournisseur?: string
+  montant?: number
+  numero?: string
+  ocrContent?: string
+  directionId: string
+  directionName: string
+  armoireId: string
+  armoireName: string
+  dossierId: string
+  dossierName: string
+}
+
+// ─── Constants ────────────────────────────────────────────────────────────────
+
+const STATUS_CONFIG: Record<DocStatus, { label: string; icon: React.ElementType; cls: string; dot: string }> = {
+  "Approuve":      { label: "Approuve",      icon: CheckCircle2, cls: "text-emerald-700 bg-emerald-50 border border-emerald-200", dot: "bg-emerald-500" },
+  "En validation": { label: "En validation", icon: Clock,        cls: "text-amber-700 bg-amber-50 border border-amber-200",     dot: "bg-amber-500" },
+  "En attente":    { label: "En attente",    icon: AlertCircle,  cls: "text-slate-600 bg-slate-100 border border-slate-200",    dot: "bg-slate-400" },
+  "Rejete":        { label: "Rejete",        icon: XCircle,      cls: "text-red-700 bg-red-50 border border-red-200",           dot: "bg-red-500" },
+}
+
+const TYPE_COLOR: Record<string, string> = {
+  pdf:  "bg-red-100 text-red-700",
+  docx: "bg-blue-100 text-blue-700",
+  xlsx: "bg-emerald-100 text-emerald-700",
+  img:  "bg-purple-100 text-purple-700",
+}
+
+const TYPE_ICON: Record<string, React.ElementType> = {
+  pdf:  FileText,
+  docx: FileText,
+  xlsx: FileSpreadsheet,
+  img:  FileImage,
+}
+
+const RECENT_SEARCHES = ["TOTAL Energie", "Orange CI", "Contrats RH 2026", "Audit Q1", "NDA Partenaire"]
+
+// ─── Helpers ──────────────────────────────────────────────────────────────────
+
+function parseDate(d: string): Date | null {
+  // Accepts dd-MM-yyyy
+  const parts = d.split("-")
+  if (parts.length !== 3) return null
+  return new Date(+parts[2], +parts[1] - 1, +parts[0])
+}
+
+function formatMontant(v: number) {
+  return new Intl.NumberFormat("fr-FR").format(v) + " FCFA"
+}
+
+// Highlight matching terms in text
+function Highlight({ text, query }: { text: string; query: string }) {
+  if (!query.trim()) return <span>{text}</span>
+  const parts = text.split(new RegExp(`(${query.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")})`, "gi"))
+  return (
+    <span>
+      {parts.map((part, i) =>
+        part.toLowerCase() === query.toLowerCase()
+          ? <mark key={i} className="bg-yellow-200 text-yellow-900 rounded-sm px-0.5">{part}</mark>
+          : part
+      )}
+    </span>
+  )
+}
+
+// Export to CSV
+function exportCSV(docs: SearchDoc[], columns: string[]) {
+  const headers = columns
+  const rows = docs.map(d => [
+    d.numero ?? d.id,
+    d.name,
+    d.fournisseur ?? "-",
+    d.montant != null ? d.montant.toString() : "-",
+    d.date,
+    d.status,
+    d.armoireName,
+    d.directionName,
+    d.type.toUpperCase(),
+  ])
+  const csv = [headers, ...rows].map(r => r.map(v => `"${v}"`).join(",")).join("\n")
+  const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" })
+  const url = URL.createObjectURL(blob)
+  const a = document.createElement("a")
+  a.href = url
+  a.download = `export_recherche_${new Date().toISOString().slice(0, 10)}.csv`
+  a.click()
+  URL.revokeObjectURL(url)
+}
+
+// ─── Filter Panel (left) ───────────────────────────────────────────────────────
+
+interface Filters {
+  query: string
+  fournisseur: string
+  dateFrom: string
+  dateTo: string
+  status: string
+  type: string
   direction: string
   armoire: string
 }
 
-interface RecentDoc {
-  id: string
-  name: string
-  type: string
-  size: string
-  date: string
-  status: "En attente" | "En validation" | "Approuve" | "Rejete"
-}
-
-// ─── Données Statiques ────────────────────────────────────────────────────────
-
-const savedSearches = ["Factures 2024", "Contrats RH", "Dossier Logistique"]
-
-const statusConfig: Record<DocStatus, { label: string; icon: React.ElementType; cls: string }> = {
-  "Approuve":      { label: "Approuvé",      icon: CheckCircle2, cls: "text-emerald-600 bg-emerald-50 dark:bg-emerald-950" },
-  "En validation": { label: "En validation", icon: Clock,        cls: "text-amber-600 bg-amber-50 dark:bg-amber-950" },
-  "En attente":    { label: "En attente",    icon: AlertCircle,  cls: "text-muted-foreground bg-muted" },
-  "Rejete":        { label: "Rejeté",        icon: XCircle,      cls: "text-red-600 bg-red-50 dark:bg-red-950" },
-}
-
-const typeColor: Record<string, string> = {
-  pdf:  "bg-red-500 text-white",
-  docx: "bg-blue-500 text-white",
-  xlsx: "bg-emerald-500 text-white",
-  img:  "bg-purple-500 text-white",
-}
-
-// ─── Composants Internes ──────────────────────────────────────────────────────
-
-function SourceBadge({ doc }: { doc: Doc }) {
+function FilterPanel({
+  filters,
+  onChange,
+  fournisseurs,
+  directions,
+  armoires,
+  onReset,
+  activeCount,
+}: {
+  filters: Filters
+  onChange: (k: keyof Filters, v: string) => void
+  fournisseurs: string[]
+  directions: string[]
+  armoires: string[]
+  onReset: () => void
+  activeCount: number
+}) {
   return (
-    <div className="flex flex-wrap gap-1">
-      {doc.source === "email" && (
-        <span className="inline-flex items-center gap-1 text-[10px] px-1.5 py-0.5 rounded bg-muted text-muted-foreground">
-          <Mail className="h-2.5 w-2.5" /> Email
-        </span>
+    <aside className="w-60 flex-shrink-0 border-r border-border bg-card flex flex-col overflow-y-auto">
+      <div className="px-4 py-3 border-b border-border flex items-center justify-between">
+        <div className="flex items-center gap-2">
+          <Filter className="h-3.5 w-3.5 text-muted-foreground" />
+          <span className="text-xs font-semibold text-foreground">Filtres</span>
+          {activeCount > 0 && (
+            <span className="h-4 w-4 rounded-full bg-foreground text-background text-[9px] flex items-center justify-center font-bold">
+              {activeCount}
+            </span>
+          )}
+        </div>
+        {activeCount > 0 && (
+          <button onClick={onReset} className="text-[10px] text-muted-foreground hover:text-foreground underline underline-offset-2">
+            Effacer
+          </button>
+        )}
+      </div>
+
+      <div className="p-3 space-y-4">
+        {/* Supplier */}
+        {/* <div className="space-y-1.5">
+          <label className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">Fournisseur</label>
+          <div className="relative">
+            <Building2 className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3 w-3 text-muted-foreground" />
+            <Input
+              value={filters.fournisseur}
+              onChange={e => onChange("fournisseur", e.target.value)}
+              placeholder="Nom du fournisseur..."
+              className="pl-7 h-8 text-xs"
+            />
+          </div>
+          {fournisseurs.length > 0 && (
+            <div className="flex flex-col gap-0.5 mt-1">
+              {fournisseurs.slice(0, 5).map(f => (
+                <button
+                  key={f}
+                  onClick={() => onChange("fournisseur", f)}
+                  className={cn(
+                    "text-left text-[11px] px-2 py-1 rounded hover:bg-muted transition-colors truncate",
+                    filters.fournisseur === f ? "bg-muted text-foreground font-medium" : "text-muted-foreground"
+                  )}
+                >
+                  {f}
+                </button>
+              ))}
+            </div>
+          )}
+        </div> */}
+
+        {/* Date range */}
+        <div className="space-y-1.5">
+          <label className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">Periode</label>
+          <div className="space-y-1.5">
+            <div>
+              <span className="text-[10px] text-muted-foreground">Du</span>
+              <Input
+                type="date"
+                value={filters.dateFrom}
+                onChange={e => onChange("dateFrom", e.target.value)}
+                className="h-8 text-xs mt-0.5"
+              />
+            </div>
+            <div>
+              <span className="text-[10px] text-muted-foreground">Au</span>
+              <Input
+                type="date"
+                value={filters.dateTo}
+                onChange={e => onChange("dateTo", e.target.value)}
+                className="h-8 text-xs mt-0.5"
+              />
+            </div>
+          </div>
+          <div className="flex flex-wrap gap-1 pt-0.5">
+            {[
+              { label: "7j", from: 7 },
+              { label: "30j", from: 30 },
+              { label: "90j", from: 90 },
+              { label: "1an", from: 365 },
+            ].map(({ label, from }) => {
+              const d = new Date()
+              const f = new Date(); f.setDate(d.getDate() - from)
+              const toStr = d.toISOString().slice(0, 10)
+              const fromStr = f.toISOString().slice(0, 10)
+              const active = filters.dateFrom === fromStr && filters.dateTo === toStr
+              return (
+                <button
+                  key={label}
+                  onClick={() => { onChange("dateFrom", fromStr); onChange("dateTo", toStr) }}
+                  className={cn(
+                    "text-[10px] px-2 py-0.5 rounded border transition-colors",
+                    active ? "bg-foreground text-background border-foreground" : "border-border text-muted-foreground hover:bg-muted"
+                  )}
+                >
+                  {label}
+                </button>
+              )
+            })}
+          </div>
+        </div>
+
+        {/* Status */}
+        <div className="space-y-1.5">
+          <label className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">Statut</label>
+          <div className="space-y-0.5">
+            {(["all", "Approuve", "En validation", "En attente", "Rejete"] as const).map(s => {
+              const cfg = s !== "all" ? STATUS_CONFIG[s as DocStatus] : null
+              return (
+                <button
+                  key={s}
+                  onClick={() => onChange("status", s)}
+                  className={cn(
+                    "w-full text-left text-[11px] px-2 py-1.5 rounded flex items-center gap-2 transition-colors",
+                    filters.status === s ? "bg-muted text-foreground font-medium" : "text-muted-foreground hover:bg-muted/50"
+                  )}
+                >
+                  {cfg ? <span className={cn("h-1.5 w-1.5 rounded-full flex-shrink-0", cfg.dot)} /> : <span className="h-1.5 w-1.5 rounded-full bg-muted-foreground/40 flex-shrink-0" />}
+                  {s === "all" ? "Tous" : s}
+                </button>
+              )
+            })}
+          </div>
+        </div>
+
+        {/* Type */}
+        <div className="space-y-1.5">
+          <label className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">Type de document</label>
+          <div className="flex flex-wrap gap-1">
+            {["all", "pdf", "docx", "xlsx", "img"].map(t => (
+              <button
+                key={t}
+                onClick={() => onChange("type", t)}
+                className={cn(
+                  "text-[10px] px-2 py-0.5 rounded border font-medium transition-colors",
+                  filters.type === t
+                    ? t === "all" ? "bg-foreground text-background border-foreground" : cn(TYPE_COLOR[t], "border-transparent")
+                    : "border-border text-muted-foreground hover:bg-muted"
+                )}
+              >
+                {t === "all" ? "Tous" : t.toUpperCase()}
+              </button>
+            ))}
+          </div>
+        </div>
+
+        {/* Direction */}
+        <div className="space-y-1.5">
+          <label className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">Direction</label>
+          <Select value={filters.direction} onValueChange={v => onChange("direction", v)}>
+            <SelectTrigger className="h-8 text-xs">
+              <SelectValue placeholder="Toutes" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">Toutes</SelectItem>
+              {directions.map(d => <SelectItem key={d} value={d}>{d}</SelectItem>)}
+            </SelectContent>
+          </Select>
+        </div>
+
+        {/* Armoire */}
+        <div className="space-y-1.5">
+          <label className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">Armoire</label>
+          <Select value={filters.armoire} onValueChange={v => onChange("armoire", v)}>
+            <SelectTrigger className="h-8 text-xs">
+              <SelectValue placeholder="Toutes" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">Toutes</SelectItem>
+              {armoires.map(a => <SelectItem key={a} value={a}>{a}</SelectItem>)}
+            </SelectContent>
+          </Select>
+        </div>
+      </div>
+    </aside>
+  )
+}
+
+// ─── Preview Panel (right) ────────────────────────────────────────────────────
+
+function PreviewPanel({ doc, query, onClose }: { doc: SearchDoc; query: string; onClose: () => void }) {
+  const status = STATUS_CONFIG[doc.status]
+  const StatusIcon = status.icon
+  const TypeIcon = TYPE_ICON[doc.type] ?? FileText
+
+  return (
+    <aside className="w-80 flex-shrink-0 border-l border-border bg-card flex flex-col animate-in slide-in-from-right duration-200">
+      {/* Header */}
+      <div className="flex items-center justify-between px-4 py-3 border-b border-border flex-shrink-0">
+        <div className="flex items-center gap-2 min-w-0">
+          <div className={cn("h-7 w-7 rounded flex items-center justify-center flex-shrink-0", TYPE_COLOR[doc.type] ?? "bg-muted text-foreground")}>
+            <TypeIcon className="h-3.5 w-3.5" />
+          </div>
+          <p className="text-xs font-semibold text-foreground truncate">{doc.name}</p>
+        </div>
+        <Button variant="ghost" size="icon" className="h-7 w-7 flex-shrink-0" onClick={onClose}>
+          <X className="h-3.5 w-3.5" />
+        </Button>
+      </div>
+
+      {/* Scrollable body */}
+      <div className="flex-1 overflow-y-auto">
+        {/* Preview zone with OCR highlight */}
+        <div className="bg-muted/40 p-4 border-b border-border">
+          <p className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground mb-2">Apercu du contenu</p>
+          {doc.ocrContent ? (
+            <div className="bg-background rounded p-3 text-[11px] leading-relaxed text-muted-foreground border border-border">
+              <Highlight text={doc.ocrContent} query={query} />
+            </div>
+          ) : (
+            <div className="bg-background rounded p-6 flex flex-col items-center gap-2 border border-border">
+              <TypeIcon className="h-8 w-8 text-muted-foreground/30" />
+              <p className="text-[10px] text-muted-foreground">Apercu non disponible</p>
+            </div>
+          )}
+        </div>
+
+        {/* Quick actions */}
+        <div className="flex gap-2 p-3 border-b border-border">
+          <Button size="sm" className="flex-1 h-8 gap-1.5 text-xs" asChild>
+            <Link href={`/document/${doc.id}`}>
+              <Eye className="h-3.5 w-3.5" /> Ouvrir
+            </Link>
+          </Button>
+          <Button size="sm" variant="outline" className="flex-1 h-8 gap-1.5 text-xs">
+            <Download className="h-3.5 w-3.5" /> Telecharger
+          </Button>
+          <Button size="sm" variant="outline" className="h-8 w-8 p-0" asChild>
+            <Link href={`/document/${doc.id}`} target="_blank">
+              <ExternalLink className="h-3.5 w-3.5" />
+            </Link>
+          </Button>
+        </div>
+
+        {/* Metadata */}
+        <div className="p-3 space-y-3">
+          {/* Status + Type */}
+          <div className="flex items-center gap-1.5 flex-wrap">
+            <span className={cn("inline-flex items-center gap-1 rounded px-2 py-0.5 text-[10px] font-medium", status.cls)}>
+              <StatusIcon className="h-2.5 w-2.5" /> {status.label}
+            </span>
+            <span className={cn("inline-flex items-center rounded px-2 py-0.5 text-[10px] font-medium", TYPE_COLOR[doc.type] ?? "bg-muted text-foreground")}>
+              {doc.type.toUpperCase()}
+            </span>
+          </div>
+
+          {/* Invoice fields */}
+          {(doc.fournisseur || doc.montant != null || doc.numero) && (
+            <div className="bg-muted/50 rounded p-2.5 space-y-1.5">
+              <p className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">Facture</p>
+              {doc.numero && <div className="flex justify-between text-[11px]"><span className="text-muted-foreground">N°</span><span className="font-mono font-medium">{doc.numero}</span></div>}
+              {doc.fournisseur && <div className="flex justify-between text-[11px]"><span className="text-muted-foreground">Fournisseur</span><span className="font-medium">{doc.fournisseur}</span></div>}
+              {doc.montant != null && <div className="flex justify-between text-[11px]"><span className="text-muted-foreground">Montant</span><span className="font-semibold text-foreground">{formatMontant(doc.montant)}</span></div>}
+            </div>
+          )}
+
+          {/* Info grid */}
+          <div className="grid grid-cols-2 gap-1.5">
+            {[
+              { icon: Building2, label: "Direction", value: doc.directionName },
+              { icon: Tag,       label: "Armoire",   value: doc.armoireName },
+              { icon: Calendar,  label: "Date",      value: doc.date },
+              { icon: User,      label: "Auteur",    value: doc.author },
+              { icon: Hash,      label: "OCR",       value: `${doc.confidence}%` },
+            ].map(({ icon: Icon, label, value }) => (
+              <div key={label} className="p-2 bg-muted/40 rounded">
+                <p className="text-[9px] text-muted-foreground mb-0.5 uppercase tracking-wider">{label}</p>
+                <div className="flex items-center gap-1 text-[11px] font-medium text-foreground">
+                  <Icon className="h-2.5 w-2.5 text-muted-foreground flex-shrink-0" />
+                  <span className="truncate">{value}</span>
+                </div>
+              </div>
+            ))}
+          </div>
+
+          {/* Description */}
+          {doc.description && (
+            <div>
+              <p className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground mb-1">Description</p>
+              <p className="text-[11px] text-muted-foreground leading-relaxed">
+                <Highlight text={doc.description} query={query} />
+              </p>
+            </div>
+          )}
+
+          {/* Tags */}
+          {doc.tags.length > 0 && (
+            <div>
+              <p className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground mb-1">Tags</p>
+              <div className="flex flex-wrap gap-1">
+                {doc.tags.map(tag => (
+                  <span key={tag} className="text-[10px] px-1.5 py-0.5 rounded bg-muted text-muted-foreground">{tag}</span>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* Source */}
+          {(doc.linkedEmail || doc.linkedWorkflow) && (
+            <div>
+              <p className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground mb-1">Source</p>
+              <div className="space-y-1">
+                {doc.linkedEmail && (
+                  <p className="text-[11px] text-muted-foreground flex items-center gap-1.5">
+                    <Mail className="h-2.5 w-2.5" /> {doc.linkedEmail}
+                  </p>
+                )}
+                {doc.linkedWorkflow && (
+                  <p className="text-[11px] text-muted-foreground flex items-center gap-1.5">
+                    <GitBranch className="h-2.5 w-2.5" /> {doc.linkedWorkflow}
+                  </p>
+                )}
+              </div>
+            </div>
+          )}
+        </div>
+      </div>
+    </aside>
+  )
+}
+
+// ─── Results Table ─────────────────────────────────────────────────────────────
+
+type SortKey = "date" | "name" | "montant" | "status" | "fournisseur"
+
+function ResultsTable({
+  docs,
+  query,
+  selectedId,
+  onSelect,
+}: {
+  docs: SearchDoc[]
+  query: string
+  selectedId: string | null
+  onSelect: (doc: SearchDoc | null) => void
+}) {
+  const [sortKey, setSortKey] = useState<SortKey>("date")
+  const [sortAsc, setSortAsc] = useState(false)
+
+  const sorted = [...docs].sort((a, b) => {
+    let cmp = 0
+    if (sortKey === "date") {
+      const da = parseDate(a.date)?.getTime() ?? 0
+      const db = parseDate(b.date)?.getTime() ?? 0
+      cmp = da - db
+    } else if (sortKey === "montant") {
+      cmp = (a.montant ?? 0) - (b.montant ?? 0)
+    } else if (sortKey === "name") {
+      cmp = a.name.localeCompare(b.name)
+    } else if (sortKey === "status") {
+      cmp = a.status.localeCompare(b.status)
+    } else if (sortKey === "fournisseur") {
+      cmp = (a.fournisseur ?? "").localeCompare(b.fournisseur ?? "")
+    }
+    return sortAsc ? cmp : -cmp
+  })
+
+  const toggleSort = (key: SortKey) => {
+    if (sortKey === key) setSortAsc(v => !v)
+    else { setSortKey(key); setSortAsc(false) }
+  }
+
+  const SortIcon = ({ k }: { k: SortKey }) => (
+    sortKey === k
+      ? sortAsc ? <ChevronUp className="h-3 w-3" /> : <ChevronDown className="h-3 w-3" />
+      : <ArrowUpDown className="h-3 w-3 opacity-30" />
+  )
+
+  const ColHeader = ({ k, label, className }: { k: SortKey; label: string; className?: string }) => (
+    <th
+      className={cn("px-3 py-2.5 text-left text-[10px] font-semibold uppercase tracking-wider text-muted-foreground cursor-pointer hover:text-foreground select-none group", className)}
+      onClick={() => toggleSort(k)}
+    >
+      <div className="flex items-center gap-1">
+        {label}
+        <SortIcon k={k} />
+      </div>
+    </th>
+  )
+
+  return (
+    <div className="overflow-auto flex-1">
+      <table className="w-full text-sm border-collapse">
+        <thead className="sticky top-0 bg-card border-b border-border z-10">
+          <tr>
+            <ColHeader k="name" label="Document" />
+            <ColHeader k="fournisseur" label="Fournisseur" className="hidden lg:table-cell" />
+            <ColHeader k="montant" label="Montant" className="hidden md:table-cell" />
+            <ColHeader k="date" label="Date" />
+            <ColHeader k="status" label="Statut" />
+            <th className="px-3 py-2.5 text-left text-[10px] font-semibold uppercase tracking-wider text-muted-foreground hidden xl:table-cell">Armoire</th>
+            <th className="px-3 py-2.5 w-10"></th>
+          </tr>
+        </thead>
+        <tbody className="divide-y divide-border">
+          {sorted.map(doc => {
+            const isActive = selectedId === doc.id
+            const status = STATUS_CONFIG[doc.status]
+            const TypeIcon = TYPE_ICON[doc.type] ?? FileText
+            return (
+              <tr
+                key={doc.id}
+                onClick={() => onSelect(isActive ? null : doc)}
+                onDoubleClick={() => window.location.href = `/document/${doc.id}`}
+                className={cn(
+                  "cursor-pointer transition-colors group",
+                  isActive ? "bg-muted/70" : "hover:bg-muted/30"
+                )}
+              >
+                {/* Document name */}
+                <td className="px-3 py-2.5 max-w-[260px]">
+                  <div className="flex items-center gap-2.5">
+                    <div className={cn("h-7 w-7 rounded flex items-center justify-center flex-shrink-0", TYPE_COLOR[doc.type] ?? "bg-muted text-muted-foreground")}>
+                      <TypeIcon className="h-3.5 w-3.5" />
+                    </div>
+                    <div className="min-w-0">
+                      <p className="text-xs font-medium text-foreground truncate leading-tight">
+                        <Highlight text={doc.name} query={query} />
+                      </p>
+                      <p className="text-[10px] text-muted-foreground font-mono">{doc.numero ?? doc.id}</p>
+                    </div>
+                  </div>
+                </td>
+                {/* Fournisseur */}
+                <td className="px-3 py-2.5 hidden lg:table-cell">
+                  <span className="text-xs text-foreground">
+                    {doc.fournisseur
+                      ? <Highlight text={doc.fournisseur} query={query} />
+                      : <span className="text-muted-foreground">—</span>
+                    }
+                  </span>
+                </td>
+                {/* Montant */}
+                <td className="px-3 py-2.5 hidden md:table-cell">
+                  <span className="text-xs font-medium text-foreground tabular-nums">
+                    {doc.montant != null ? formatMontant(doc.montant) : <span className="text-muted-foreground">—</span>}
+                  </span>
+                </td>
+                {/* Date */}
+                <td className="px-3 py-2.5 whitespace-nowrap">
+                  <span className="text-xs text-muted-foreground">{doc.date}</span>
+                </td>
+                {/* Status */}
+                <td className="px-3 py-2.5">
+                  <span className={cn("inline-flex items-center gap-1 rounded px-1.5 py-0.5 text-[10px] font-medium whitespace-nowrap", status.cls)}>
+                    <span className={cn("h-1.5 w-1.5 rounded-full flex-shrink-0", status.dot)} />
+                    {status.label}
+                  </span>
+                </td>
+                {/* Armoire */}
+                <td className="px-3 py-2.5 hidden xl:table-cell">
+                  <span className="text-[11px] text-muted-foreground">{doc.armoireName}</span>
+                </td>
+                {/* Actions */}
+                <td className="px-2 py-2.5">
+                  <div className="flex items-center gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity">
+                    <Button variant="ghost" size="icon" className="h-6 w-6" asChild>
+                      <Link href={`/document/${doc.id}`}>
+                        <Eye className="h-3 w-3" />
+                      </Link>
+                    </Button>
+                    <Button variant="ghost" size="icon" className="h-6 w-6">
+                      <Download className="h-3 w-3" />
+                    </Button>
+                  </div>
+                </td>
+              </tr>
+            )
+          })}
+        </tbody>
+      </table>
+    </div>
+  )
+}
+
+// ─── Zero state ───────────────────────────────────────────────────────────────
+
+function ZeroState({ query, fournisseur, onReset }: { query: string; fournisseur: string; onReset: () => void }) {
+  return (
+    <div className="flex-1 flex flex-col items-center justify-center gap-4 p-8 text-center">
+      <div className="h-12 w-12 rounded-full bg-muted flex items-center justify-center">
+        <Search className="h-5 w-5 text-muted-foreground" />
+      </div>
+      <div>
+        <p className="text-sm font-medium text-foreground mb-1">Aucun document trouve</p>
+        <p className="text-xs text-muted-foreground max-w-xs">
+          {query || fournisseur
+            ? <>Aucun resultat pour <span className="font-medium text-foreground">&ldquo;{query || fournisseur}&rdquo;</span>.</>
+            : "Lancez une recherche ou selectionnez des filtres."
+          }
+        </p>
+      </div>
+      {(query || fournisseur) && (
+        <div className="space-y-2 text-xs text-muted-foreground">
+          <p className="font-medium text-foreground">Suggestions :</p>
+          <ul className="text-left space-y-1 list-disc list-inside">
+            <li>Verifiez l&apos;orthographe du fournisseur</li>
+            <li>Elargissez la plage de dates</li>
+            <li>Essayez un terme plus general</li>
+            <li>Retirez un ou plusieurs filtres</li>
+          </ul>
+        </div>
       )}
-      {doc.source === "workflow" && (
-        <span className="inline-flex items-center gap-1 text-[10px] px-1.5 py-0.5 rounded bg-violet-100 text-violet-600 dark:bg-violet-950 dark:text-violet-300">
-          <GitBranch className="h-2.5 w-2.5" /> Workflow
-        </span>
-      )}
-      {doc.linkedWorkflow && doc.source !== "workflow" && (
-        <span className="inline-flex items-center gap-1 text-[10px] px-1.5 py-0.5 rounded bg-violet-100 text-violet-600 dark:bg-violet-950 dark:text-violet-300">
-          <GitBranch className="h-2.5 w-2.5" /> {doc.linkedWorkflow}
-        </span>
+      {(query || fournisseur) && (
+        <Button variant="outline" size="sm" className="h-8 text-xs" onClick={onReset}>
+          Effacer les filtres
+        </Button>
       )}
     </div>
   )
 }
 
-function DetailPanel({ doc, onClose }: { doc: Doc; onClose: () => void }) {
-  const status = statusConfig[doc.status]
-  const StatusIcon = status.icon
+// ─── Auto-suggest dropdown ────────────────────────────────────────────────────
+
+function SearchSuggest({
+  query,
+  fournisseurs,
+  recentSearches,
+  onSelect,
+}: {
+  query: string
+  fournisseurs: string[]
+  recentSearches: string[]
+  onSelect: (v: string) => void
+}) {
+  if (!query) {
+    // Show recent searches
+    if (recentSearches.length === 0) return null
+    return (
+      <div className="absolute top-full left-0 right-0 mt-1 bg-card border border-border rounded-lg shadow-lg z-50 overflow-hidden">
+        <div className="px-3 py-1.5 border-b border-border">
+          <p className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">Recherches recentes</p>
+        </div>
+        {recentSearches.map(s => (
+          <button
+            key={s}
+            onClick={() => onSelect(s)}
+            className="w-full text-left px-3 py-2 text-xs text-foreground hover:bg-muted flex items-center gap-2"
+          >
+            <Clock className="h-3 w-3 text-muted-foreground flex-shrink-0" />
+            {s}
+          </button>
+        ))}
+      </div>
+    )
+  }
+
+  const suggestions = [
+    ...fournisseurs.filter(f => f.toLowerCase().includes(query.toLowerCase())),
+  ].slice(0, 6)
+
+  if (suggestions.length === 0) return null
 
   return (
-    <>
-      <div className="fixed inset-0 bg-black/40 z-40 transition-opacity duration-200" onClick={onClose} />
-      <div className="fixed top-0 right-0 h-full w-full max-w-[420px] bg-background z-50 shadow-2xl animate-in slide-in-from-right duration-300 flex flex-col">
-        <div className="flex items-center justify-between px-4 py-3 border-b border-border flex-shrink-0">
-          <div className="flex items-center gap-3 min-w-0">
-            <div className="h-10 w-10 rounded bg-muted flex items-center justify-center flex-shrink-0">
-              <FileText className="h-5 w-5 text-foreground" />
-            </div>
-            <div className="min-w-0">
-              <p className="text-sm font-semibold text-foreground truncate">{doc.title}</p>
-              <p className="text-[11px] text-muted-foreground">{doc.id} · {doc.size}</p>
-            </div>
-          </div>
-          <Button variant="ghost" size="icon" className="h-8 w-8 flex-shrink-0" onClick={onClose}>
-            <X className="h-4 w-4" />
-          </Button>
-        </div>
-
-        <div className="flex-1 overflow-y-auto">
-          <div className="bg-muted/50 flex items-center justify-center p-6" style={{ minHeight: 180 }}>
-            <div className="flex flex-col items-center gap-3 text-muted-foreground">
-              <div className="h-14 w-14 rounded bg-background border border-border flex items-center justify-center">
-                <FileText className="h-7 w-7" />
-              </div>
-              <p className="text-xs text-center max-w-[200px]">{doc.title}</p>
-            </div>
-          </div>
-
-          <div className="flex gap-2 p-3 border-b border-border">
-            <Button className="flex-1 h-9 gap-2 text-sm rounded" size="sm" asChild>
-              <Link href={`/document/${doc.id}`}>
-                <Eye className="h-4 w-4" /> Ouvrir
-              </Link>
-            </Button>
-            <Button variant="outline" className="flex-1 h-9 gap-2 text-sm rounded" size="sm">
-              <Download className="h-4 w-4" /> Télécharger
-            </Button>
-          </div>
-
-          <div className="p-3 space-y-4">
-            <div className="flex items-center gap-2 flex-wrap">
-              <span className={cn("inline-flex items-center gap-1.5 rounded px-2 py-1 text-[11px] font-medium", status.cls)}>
-                <StatusIcon className="h-3 w-3" /> {status.label}
-              </span>
-              <span className={cn("inline-flex items-center rounded px-2 py-1 text-[11px] font-medium", typeColor[doc.type] ?? "bg-muted text-foreground")}>
-                {doc.type.toUpperCase()}
-              </span>
-            </div>
-
-            <div className="grid grid-cols-2 gap-2">
-              {[
-                { icon: Building2, label: "Direction",  value: doc.direction },
-                { icon: Folder,    label: "Armoire",    value: doc.armoire },
-                { icon: Calendar,  label: "Date",       value: doc.date },
-                { icon: User,      label: "Auteur",     value: doc.author },
-                { icon: Hash,      label: "OCR",        value: `${doc.confidence}%` },
-              ].map(({ icon: Icon, label, value }) => (
-                <div key={label} className="p-2 bg-muted/40 rounded">
-                  <p className="text-[10px] text-muted-foreground mb-0.5">{label}</p>
-                  <div className="flex items-center gap-1.5 text-xs font-medium text-foreground">
-                    <Icon className="h-3 w-3 text-muted-foreground" />
-                    <span className="truncate">{value}</span>
-                  </div>
-                </div>
-              ))}
-            </div>
-
-            <div className="space-y-1">
-              <p className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">Description</p>
-              <p className="text-xs text-muted-foreground leading-relaxed">{doc.description}</p>
-            </div>
-
-            <div className="space-y-1">
-              <p className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">Tags</p>
-              <div className="flex flex-wrap gap-1">
-                {doc.tags.map(tag => (
-                  <span key={tag} className="inline-flex items-center gap-1 text-[10px] px-2 py-0.5 rounded bg-muted text-muted-foreground">
-                    <Tag className="h-2.5 w-2.5" /> {tag}
-                  </span>
-                ))}
-              </div>
-            </div>
-          </div>
-        </div>
+    <div className="absolute top-full left-0 right-0 mt-1 bg-card border border-border rounded-lg shadow-lg z-50 overflow-hidden">
+      <div className="px-3 py-1.5 border-b border-border">
+        <p className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground flex items-center gap-1">
+          <Sparkles className="h-2.5 w-2.5" /> Suggestions
+        </p>
       </div>
-    </>
+      {suggestions.map(s => (
+        <button
+          key={s}
+          onClick={() => onSelect(s)}
+          className="w-full text-left px-3 py-2 text-xs text-foreground hover:bg-muted flex items-center gap-2"
+        >
+          <Building2 className="h-3 w-3 text-muted-foreground flex-shrink-0" />
+          <Highlight text={s} query={query} />
+        </button>
+      ))}
+    </div>
   )
 }
 
-// ─── Composant Principal ─────────────────────────────────────────────────────
+// ─── Main SearchPage ──────────────────────────────────────────────────────────
+
+const EMPTY_FILTERS: Filters = {
+  query: "",
+  fournisseur: "",
+  dateFrom: "",
+  dateTo: "",
+  status: "all",
+  type: "all",
+  direction: "all",
+  armoire: "all",
+}
 
 export function SearchPage() {
-  const router = useRouter()
   const searchParams = useSearchParams()
-  const [allDocs, setAllDocs] = useState<Doc[]>([])
-  const [query, setQuery] = useState("")
-  const [armoireFilter, setArmoireFilter] = useState("all")
-  const [typeFilter, setTypeFilter] = useState("all")
-  const [periodFilter, setPeriodFilter] = useState("all")
-  const [statusFilter, setStatusFilter] = useState("all")
-  const [selectedDoc, setSelectedDoc] = useState<Doc | null>(null)
-  const [savedList, setSavedList] = useState<string[]>(savedSearches)
+  const [allDocs, setAllDocs] = useState<SearchDoc[]>([])
+  const [fournisseurs, setFournisseurs] = useState<string[]>([])
+  const [directions, setDirections] = useState<string[]>([])
+  const [armoires, setArmoires] = useState<string[]>([])
+  const [filters, setFilters] = useState<Filters>({ ...EMPTY_FILTERS, query: searchParams.get("q") ?? "" })
+  const [selectedDoc, setSelectedDoc] = useState<SearchDoc | null>(null)
+  const [showSuggest, setShowSuggest] = useState(false)
+  const [savedList, setSavedList] = useState<string[]>(RECENT_SEARCHES)
   const [saveSuccess, setSaveSuccess] = useState(false)
-  const [showFilters, setShowFilters] = useState(false)
-  const [dateFilter, setDateFilter] = useState("all")
-  const [customDateStart, setCustomDateStart] = useState("")
-  const [customDateEnd, setCustomDateEnd] = useState("")
-  const [showDateModal, setShowDateModal] = useState(false)
-  const [sourceFilter, setSourceFilter] = useState<string | null>(
-    searchParams.get("source")
-  )
+  const searchRef = useRef<HTMLDivElement>(null)
 
+  // Load from store
   useEffect(() => {
-    const loadData = () => {
-      const docs: Doc[] = []
-      const dirs = store.getDirections()
-      dirs.forEach(dir => {
-        dir.armoires.forEach(arm => {
-          arm.dossiers.forEach(dos => {
-            dos.files.forEach(file => {
-              docs.push({
-                ...file,
-                title: file.name,
-                direction: dir.name,
-                armoire: arm.id,
-              })
-            })
-          })
-        })
-      })
+    const load = () => {
+      const docs = store.getAllDocumentsWithContext() as SearchDoc[]
       setAllDocs(docs)
+      setFournisseurs(store.getFournisseurs())
+      const dirs = [...new Set(docs.map(d => d.directionName))].sort()
+      const arms = [...new Set(docs.map(d => d.armoireName))].sort()
+      setDirections(dirs)
+      setArmoires(arms)
     }
-    loadData()
-    return store.subscribe(loadData)
+    load()
+    return store.subscribe(load)
   }, [])
 
-  const activeFilters = [armoireFilter, typeFilter, dateFilter, statusFilter].filter(f => f !== "all").length
-
-  const getDateRange = (filter: string): { start: Date; end: Date } | null => {
-    const now = new Date()
-    const today = new Date(now.getFullYear(), now.getMonth(), now.getDate())
-    
-    switch (filter) {
-      case "today": {
-        const tomorrow = new Date(today)
-        tomorrow.setDate(tomorrow.getDate() + 1)
-        return { start: today, end: tomorrow }
+  // Close suggest on outside click
+  useEffect(() => {
+    const handler = (e: MouseEvent) => {
+      if (searchRef.current && !searchRef.current.contains(e.target as Node)) {
+        setShowSuggest(false)
       }
-      case "week": {
-        const dayOfWeek = today.getDay()
-        const startOfWeek = new Date(today)
-        startOfWeek.setDate(today.getDate() - dayOfWeek)
-        const endOfWeek = new Date(startOfWeek)
-        endOfWeek.setDate(endOfWeek.getDate() + 7)
-        return { start: startOfWeek, end: endOfWeek }
-      }
-      case "month": {
-        const startOfMonth = new Date(today.getFullYear(), today.getMonth(), 1)
-        const endOfMonth = new Date(today.getFullYear(), today.getMonth() + 1, 1)
-        return { start: startOfMonth, end: endOfMonth }
-      }
-      case "year": {
-        const startOfYear = new Date(today.getFullYear(), 0, 1)
-        const endOfYear = new Date(today.getFullYear() + 1, 0, 1)
-        return { start: startOfYear, end: endOfYear }
-      }
-      default:
-        return null
     }
-  }
+    document.addEventListener("mousedown", handler)
+    return () => document.removeEventListener("mousedown", handler)
+  }, [])
 
+  const setFilter = useCallback((k: keyof Filters, v: string) => {
+    setFilters(prev => ({ ...prev, [k]: v }))
+  }, [])
+
+  const resetFilters = useCallback(() => {
+    setFilters(EMPTY_FILTERS)
+    setSelectedDoc(null)
+  }, [])
+
+  const activeCount = Object.entries(filters).filter(([k, v]) =>
+    v && v !== "all" && v !== ""
+  ).length
+
+  // Filter docs
   const filtered = allDocs.filter(doc => {
-    const q = query.toLowerCase()
-    const matchQuery = !q || doc.title.toLowerCase().includes(q) || doc.id.toLowerCase().includes(q) || doc.tags.some(t => t.toLowerCase().includes(q))
-    const matchArmoire = armoireFilter === "all" || doc.armoire === armoireFilter
-    const matchType = typeFilter === "all" || doc.type.toUpperCase() === typeFilter
-    const matchStatus = statusFilter === "all" || doc.status === statusFilter
-    
+    const q = filters.query.toLowerCase()
+    const fq = filters.fournisseur.toLowerCase()
+
+    // Full-text: name, tags, description, ocrContent, fournisseur, numero
+    const matchQuery = !q || [
+      doc.name,
+      doc.description,
+      doc.ocrContent ?? "",
+      doc.fournisseur ?? "",
+      doc.numero ?? "",
+      ...(doc.tags ?? []),
+    ].some(t => t.toLowerCase().includes(q))
+
+    const matchFournisseur = !fq || (doc.fournisseur ?? "").toLowerCase().includes(fq)
+    const matchType = filters.type === "all" || doc.type === filters.type
+    const matchStatus = filters.status === "all" || doc.status === filters.status
+    const matchDirection = filters.direction === "all" || doc.directionName === filters.direction
+    const matchArmoire = filters.armoire === "all" || doc.armoireName === filters.armoire
+
     let matchDate = true
-    if (dateFilter !== "all") {
-      try {
-        const docDate = new Date(doc.date)
-        
-        // Plage personnalisée
-        if (dateFilter === "custom") {
-          if (customDateStart) {
-            const startDate = new Date(customDateStart)
-            if (docDate < startDate) matchDate = false
-          }
-          if (customDateEnd) {
-            const endDate = new Date(customDateEnd)
-            endDate.setDate(endDate.getDate() + 1) // Inclure toute la journée de fin
-            if (docDate >= endDate) matchDate = false
-          }
-        } else {
-          // Plages prédéfinies
-          const range = getDateRange(dateFilter)
-          if (range) {
-            matchDate = docDate >= range.start && docDate < range.end
-          }
-        }
-      } catch {
-        matchDate = false
+    if (filters.dateFrom || filters.dateTo) {
+      const d = parseDate(doc.date)
+      if (d) {
+        if (filters.dateFrom && d < new Date(filters.dateFrom)) matchDate = false
+        if (filters.dateTo && d > new Date(filters.dateTo + "T23:59:59")) matchDate = false
       }
     }
-    
-    const matchSource = !sourceFilter || doc.source === "email"
-    return matchQuery && matchArmoire && matchType && matchStatus && matchDate && matchSource
+
+    return matchQuery && matchFournisseur && matchType && matchStatus && matchDirection && matchArmoire && matchDate
   })
 
+  const totalMontant = filtered.reduce((s, d) => s + (d.montant ?? 0), 0)
+
   const handleSave = () => {
-    if (!query.trim()) return
-    if (!savedList.includes(query)) setSavedList(prev => [query, ...prev])
+    const term = filters.query || filters.fournisseur
+    if (!term) return
+    if (!savedList.includes(term)) setSavedList(prev => [term, ...prev.slice(0, 7)])
     setSaveSuccess(true)
     setTimeout(() => setSaveSuccess(false), 2000)
   }
 
-  const clearAllFilters = () => {
-    setArmoireFilter("all"); setTypeFilter("all"); setDateFilter("all"); setStatusFilter("all"); setQuery(""); setCustomDateStart(""); setCustomDateEnd("")
-  }
+  const displayQuery = filters.query || filters.fournisseur
 
   return (
-    <div className="flex h-[calc(100vh-56px)] bg-background">
-      <div className="flex-1 flex flex-col min-w-0">
-        {/* Barre de Recherche */}
-        <div className="px-4 pt-4 pb-3 border-b border-border space-y-2.5">
-          <div className="flex gap-2">
-            <div className="relative flex-1">
+    <div className="flex h-[calc(100vh-56px)] overflow-hidden">
+      {/* Left: filter panel */}
+      <FilterPanel
+        filters={filters}
+        onChange={setFilter}
+        fournisseurs={fournisseurs}
+        directions={directions}
+        armoires={armoires}
+        onReset={resetFilters}
+        activeCount={activeCount}
+      />
+
+      {/* Center: search bar + results */}
+      <div className="flex-1 flex flex-col min-w-0 overflow-hidden">
+        {/* Search bar */}
+        <div className="px-4 pt-3.5 pb-3 border-b border-border space-y-2.5 flex-shrink-0">
+          <div className="flex gap-2 items-center">
+            {/* Full-text search */}
+            <div className="relative flex-1" ref={searchRef}>
               <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
               <Input
-                value={query}
-                onChange={e => setQuery(e.target.value)}
-                placeholder="Rechercher un document..."
-                className="pl-9 h-9 text-sm bg-muted/50 border-0 focus-visible:ring-1 rounded"
+                value={filters.query}
+                onChange={e => { setFilter("query", e.target.value); setShowSuggest(true) }}
+                onFocus={() => setShowSuggest(true)}
+                onKeyDown={e => {
+                  if (e.key === "Escape") { setFilter("query", ""); setShowSuggest(false) }
+                }}
+                placeholder="Recherche full-text (nom, contenu OCR, tags...)"
+                className="pl-9 h-9 text-sm bg-muted/50 border-0 focus-visible:ring-1"
               />
-              {query && (
-                <button onClick={() => setQuery("")} className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground">
+              {filters.query && (
+                <button onClick={() => setFilter("query", "")} className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground">
                   <X className="h-3.5 w-3.5" />
                 </button>
               )}
-            </div>
-            <Button
-              variant="outline"
-              className={cn("h-9 gap-2 text-xs rounded relative", showFilters && "bg-muted")}
-              onClick={() => setShowFilters(!showFilters)}
-            >
-              <SlidersHorizontal className="h-3.5 w-3.5" />
-              Filtres {activeFilters > 0 && `(${activeFilters})`}
-            </Button>
-            <Button
-              variant={saveSuccess ? "default" : "outline"}
-              className="h-9 gap-2 text-xs rounded"
-              onClick={handleSave}
-              disabled={!query.trim()}
-            >
-              {saveSuccess ? <BookmarkCheck className="h-3.5 w-3.5" /> : <Bookmark className="h-3.5 w-3.5" />}
-              <span className="hidden sm:inline">{saveSuccess ? "Sauvé" : "Sauver"}</span>
-            </Button>
-          </div>
-
-          {/* Pastille filtre source email */}
-          {sourceFilter && (
-            <div className="flex items-center gap-2 py-1">
-              <div className="flex items-center gap-1.5 bg-primary/10 border border-primary/20 text-primary text-[11px] font-medium px-2.5 py-1 rounded-full">
-                <Mail className="h-3 w-3" />
-                <span>Source : {sourceFilter}</span>
-                <button
-                  onClick={() => {
-                    setSourceFilter(null)
-                    router.replace("/recherche")
-                  }}
-                  className="ml-1 hover:bg-primary/20 rounded-full p-0.5 transition-colors"
-                >
-                  <X className="h-2.5 w-2.5" />
-                </button>
-              </div>
-              <span className="text-[11px] text-muted-foreground">
-                {filtered.length} document{filtered.length !== 1 ? "s" : ""} trouvé{filtered.length !== 1 ? "s" : ""}
-              </span>
-            </div>
-          )}
-
-          {/* Panel Filtres */}
-          {showFilters && (
-            <div className="flex items-center gap-2 flex-wrap py-1 animate-in fade-in slide-in-from-top-1">
-              <Select value={armoireFilter} onValueChange={setArmoireFilter}>
-                <SelectTrigger className="h-7 text-[11px] w-auto min-w-[110px]">
-                  <Folder className="h-3 w-3 mr-1 text-muted-foreground" />
-                  <SelectValue placeholder="Armoire" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">Toutes</SelectItem>
-                  <SelectItem value="finance">Finance</SelectItem>
-                  <SelectItem value="rh">RH</SelectItem>
-                  <SelectItem value="it">Informatique</SelectItem>
-                </SelectContent>
-              </Select>
-
-              <Select value={typeFilter} onValueChange={setTypeFilter}>
-                <SelectTrigger className="h-7 text-[11px] w-auto min-w-[90px]">
-                  <Tag className="h-3 w-3 mr-1 text-muted-foreground" />
-                  <SelectValue placeholder="Type" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">Tous</SelectItem>
-                  <SelectItem value="PDF">PDF</SelectItem>
-                  <SelectItem value="DOCX">DOCX</SelectItem>
-                  <SelectItem value="XLSX">XLSX</SelectItem>
-                </SelectContent>
-              </Select>
-
-              <Select value={dateFilter} onValueChange={(value) => {
-                setDateFilter(value)
-                if (value === "custom") {
-                  setShowDateModal(true)
-                } else {
-                  setCustomDateStart("")
-                  setCustomDateEnd("")
-                }
-              }}>
-                <SelectTrigger className="h-7 text-[11px] w-auto min-w-[120px]">
-                  <Calendar className="h-3 w-3 mr-1 text-muted-foreground" />
-                  <SelectValue placeholder="Période" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">Toutes les dates</SelectItem>
-                  <SelectItem value="today">Aujourd&apos;hui</SelectItem>
-                  <SelectItem value="week">Cette semaine</SelectItem>
-                  <SelectItem value="month">Ce mois</SelectItem>
-                  <SelectItem value="year">Cette année</SelectItem>
-                  <SelectItem value="custom">Personnalisée</SelectItem>
-                </SelectContent>
-              </Select>
-
-              <Select value={statusFilter} onValueChange={setStatusFilter}>
-                <SelectTrigger className="h-7 text-[11px] w-auto min-w-[110px]">
-                  <SelectValue placeholder="Statut" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">Tous</SelectItem>
-                  <SelectItem value="Approuve">Approuvé</SelectItem>
-                  <SelectItem value="En validation">En validation</SelectItem>
-                </SelectContent>
-              </Select>
-
-              {activeFilters > 0 && (
-                <button onClick={clearAllFilters} className="text-[10px] text-muted-foreground underline ml-1">
-                  Effacer
-                </button>
+              {showSuggest && (
+                <SearchSuggest
+                  query={filters.query}
+                  fournisseurs={fournisseurs}
+                  recentSearches={savedList}
+                  onSelect={v => { setFilter("query", v); setShowSuggest(false) }}
+                />
               )}
             </div>
-          )}
 
-          {/* Recherches sauvées */}
-          {savedList.length > 0 && (
-            <div className="flex items-center gap-1.5 flex-wrap">
-              <span className="text-[10px] text-muted-foreground">Favoris:</span>
-              {savedList.slice(0, 5).map((s, i) => (
-                <button
-                  key={i}
-                  onClick={() => setQuery(s)}
-                  className="inline-flex items-center gap-1 text-[10px] px-2 py-0.5 rounded border border-border hover:bg-muted text-muted-foreground transition-colors"
-                >
-                  <Bookmark className="h-2.5 w-2.5" /> {s}
-                </button>
-              ))}
-            </div>
+            {/* Save */}
+            <Button
+              variant={saveSuccess ? "default" : "outline"}
+              size="sm"
+              className="h-9 gap-1.5 text-xs flex-shrink-0"
+              onClick={handleSave}
+              disabled={!displayQuery}
+            >
+              {saveSuccess ? <BookmarkCheck className="h-3.5 w-3.5" /> : <Bookmark className="h-3.5 w-3.5" />}
+              <span className="hidden sm:inline">{saveSuccess ? "Sauvegarde" : "Sauver"}</span>
+            </Button>
+
+            {/* Export */}
+            <Button
+              variant="outline"
+              size="sm"
+              className="h-9 gap-1.5 text-xs flex-shrink-0"
+              onClick={() => exportCSV(filtered, ["N° Facture", "Document", "Fournisseur", "Montant (FCFA)", "Date", "Statut", "Armoire", "Direction", "Type"])}
+              disabled={filtered.length === 0}
+            >
+              <Download className="h-3.5 w-3.5" />
+              <span className="hidden sm:inline">CSV</span>
+            </Button>
+          </div>
+        </div>
+
+        {/* Results header */}
+        <div className="flex items-center justify-between px-4 py-2 border-b border-border flex-shrink-0 bg-muted/20">
+          <div className="flex items-center gap-3">
+            <p className="text-[11px] text-muted-foreground">
+              <span className="font-semibold text-foreground">{filtered.length}</span> document{filtered.length !== 1 ? "s" : ""}
+            </p>
+            {totalMontant > 0 && (
+              <p className="text-[11px] text-muted-foreground">
+                Total : <span className="font-semibold text-foreground">{formatMontant(totalMontant)}</span>
+              </p>
+            )}
+          </div>
+          {displayQuery && (
+            <p className="text-[10px] text-muted-foreground hidden sm:block">
+              Recherche : <span className="italic">&ldquo;{displayQuery}&rdquo;</span>
+            </p>
           )}
         </div>
 
-        {/* Liste des Résultats */}
-        <div className="flex-1 overflow-y-auto">
-          {filtered.length === 0 ? (
-            <div className="flex flex-col items-center justify-center h-full gap-3 text-muted-foreground">
-              <Search className="h-10 w-10 opacity-20" />
-              <p className="text-sm">Aucun document trouvé</p>
-            </div>
-          ) : (
-            <div className="divide-y divide-border p-4">
-              {filtered.map((doc, index) => {
-                const isActive = selectedDoc?.id === doc.id
-                const status = statusConfig[doc.status]
-                const StatusIcon = status.icon
-                return (
-                  <div
-                    key={doc.id}
-                    onClick={() => setSelectedDoc(isActive ? null : doc)}
-                    className={cn(
-                      "flex items-start gap-3 px-3 py-3 -mx-3 cursor-pointer transition-all group rounded",
-                      isActive ? "bg-muted/60" : "hover:bg-muted/30"
-                    )}
-                  >
-                    <div className="flex flex-col items-center gap-1 flex-shrink-0">
-                      <div className={cn(
-                        "h-9 w-9 rounded-lg flex items-center justify-center transition-colors",
-                        isActive ? "bg-primary text-primary-foreground" : "bg-muted group-hover:bg-primary/10"
-                      )}>
-                        <FileText className="h-4 w-4" />
-                      </div>
-                      <span className="text-[9px] text-muted-foreground font-medium">{index + 1}</span>
-                    </div>
-
-                    <div className="flex-1 min-w-0 space-y-1">
-                      <div className="flex items-start justify-between gap-2">
-                        <p className="text-sm font-medium text-foreground leading-tight line-clamp-1">{doc.title}</p>
-                        <span className={cn("inline-flex items-center gap-1 text-[10px] font-medium px-1.5 py-0.5 rounded-lg flex-shrink-0", status.cls)}>
-                          <StatusIcon className="h-2.5 w-2.5" />
-                          {status.label}
-                        </span>
-                      </div>
-
-                      <div className="flex items-center gap-1.5 flex-wrap text-[10px] text-muted-foreground">
-                        <span className="font-mono">{doc.id}</span>
-                        <span>·</span>
-                        <span>{doc.direction}</span>
-                        <span>·</span>
-                        <span>{doc.date}</span>
-                        <span>·</span>
-                        <span className={cn("font-medium px-1 rounded", typeColor[doc.type] ?? "bg-muted")}>{doc.type}</span>
-                      </div>
-                      <SourceBadge doc={doc} />
-                    </div>
-                  </div>
-                )
-              })}
-            </div>
-          )}
-        </div>
+        {/* Results */}
+        {filtered.length === 0 ? (
+          <ZeroState query={filters.query} fournisseur={filters.fournisseur} onReset={resetFilters} />
+        ) : (
+          <ResultsTable
+            docs={filtered}
+            query={filters.query || filters.fournisseur}
+            selectedId={selectedDoc?.id ?? null}
+            onSelect={setSelectedDoc}
+          />
+        )}
       </div>
 
-      {/* Panel de Détails (Conditionnel) */}
+      {/* Right: preview panel */}
       {selectedDoc && (
-        <DetailPanel doc={selectedDoc} onClose={() => setSelectedDoc(null)} />
-      )}
-
-      {/* Modal de Sélection de Plage de Date Personnalisée */}
-      {showDateModal && (
-        <>
-          <div className="fixed inset-0 bg-black/40 z-40 transition-opacity duration-200" onClick={() => {
-            setShowDateModal(false)
-            if (!customDateStart && !customDateEnd) {
-              setDateFilter("all")
-            }
-          }} />
-          <div className="fixed top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-full max-w-[380px] bg-background z-50 shadow-2xl rounded-lg animate-in fade-in duration-300 flex flex-col border border-border">
-            {/* Header du modal */}
-            <div className="flex items-center justify-between px-4 py-3 border-b border-border">
-              <h3 className="text-sm font-semibold text-foreground">Sélectionner une plage de date</h3>
-              <Button 
-                variant="ghost" 
-                size="icon" 
-                className="h-8 w-8" 
-                onClick={() => {
-                  setShowDateModal(false)
-                  if (!customDateStart && !customDateEnd) {
-                    setDateFilter("all")
-                  }
-                }}
-              >
-                <X className="h-4 w-4" />
-              </Button>
-            </div>
-
-            {/* Contenu du modal */}
-            <div className="px-4 py-4 space-y-4">
-              <div>
-                <label className="text-xs font-medium text-muted-foreground mb-2 block">Date de début</label>
-                <input
-                  type="date"
-                  value={customDateStart}
-                  onChange={(e) => setCustomDateStart(e.target.value)}
-                  className="w-full h-9 text-sm px-3 rounded border border-border bg-background hover:border-border/80 focus:border-primary focus:ring-1 focus:ring-primary outline-none transition-colors"
-                />
-              </div>
-
-              <div>
-                <label className="text-xs font-medium text-muted-foreground mb-2 block">Date de fin</label>
-                <input
-                  type="date"
-                  value={customDateEnd}
-                  onChange={(e) => setCustomDateEnd(e.target.value)}
-                  className="w-full h-9 text-sm px-3 rounded border border-border bg-background hover:border-border/80 focus:border-primary focus:ring-1 focus:ring-primary outline-none transition-colors"
-                />
-              </div>
-
-              <div className="text-xs text-muted-foreground bg-muted/50 rounded px-3 py-2">
-                {customDateStart && customDateEnd ? (
-                  <>Afficher les documents du <span className="font-medium text-foreground">{new Date(customDateStart).toLocaleDateString("fr-FR")}</span> au <span className="font-medium text-foreground">{new Date(customDateEnd).toLocaleDateString("fr-FR")}</span></>
-                ) : customDateStart ? (
-                  <>À partir du <span className="font-medium text-foreground">{new Date(customDateStart).toLocaleDateString("fr-FR")}</span></>
-                ) : customDateEnd ? (
-                  <>Jusqu&apos;au <span className="font-medium text-foreground">{new Date(customDateEnd).toLocaleDateString("fr-FR")}</span></>
-                ) : (
-                  <>Aucune date sélectionnée</>
-                )}
-              </div>
-            </div>
-
-            {/* Footer du modal */}
-            <div className="flex items-center justify-between gap-2 px-4 py-3 border-t border-border bg-muted/30">
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => {
-                  setCustomDateStart("")
-                  setCustomDateEnd("")
-                  setDateFilter("all")
-                  setShowDateModal(false)
-                }}
-                className="text-xs h-8"
-              >
-                Réinitialiser
-              </Button>
-              <Button
-                size="sm"
-                onClick={() => {
-                  setShowDateModal(false)
-                }}
-                className="text-xs h-8"
-              >
-                Appliquer
-              </Button>
-            </div>
-          </div>
-        </>
+        <PreviewPanel
+          doc={selectedDoc}
+          query={filters.query || filters.fournisseur}
+          onClose={() => setSelectedDoc(null)}
+        />
       )}
     </div>
   )
