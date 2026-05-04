@@ -11,6 +11,7 @@ import {
   ChevronLeft,
   Building2,
   Trash2,
+  GitBranch,
 } from "lucide-react"
 import { useState, useEffect } from "react"
 import { Button } from "@/components/ui/button"
@@ -23,6 +24,7 @@ const navigation = [
   { name: "Accueil", icon: House, href: "/" },
   { name: "Recherche", icon: Search, href: "/recherche" },
   { name: "Directions", icon: Building2, href: "/direction" },
+  { name: "Workflows", icon: GitBranch, href: "/workflows" },
   { name: "Sources Emails", icon: Mail, href: "/sources-emails" },
   { name: "Types de Docs", icon: Tag, href: "/types-docs" },
 ]
