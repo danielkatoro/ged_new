@@ -50,7 +50,7 @@ const NAV: { id: Section; label: string; icon: React.ElementType }[] = [
   { id: "journal",       label: "Journal d'audit",      icon: FileText },
   { id: "rgpd",          label: "Conformité RGPD",      icon: Lock },
   { id: "integrations",  label: "Intégrations (API)",   icon: Webhook },
-  { id: "armoires",      label: "Gérer les Armoires",   icon: Archive },
+  { id: "armoires",      label: "Gérer les Directions",   icon: Archive },
 ]
 
 // ─── Simulated audit log ───────────────────────────────────────────────────────
@@ -302,7 +302,7 @@ function UtilisateursSection() {
           />
         </div>
         <Button size="sm" className="h-8 text-xs gap-1.5" onClick={() => setShowInvite(v => !v)}>
-          <Plus className="h-3.5 w-3.5" /> Inviter
+          <Plus className="h-3.5 w-3.5" /> Ajouter un utilisateur
         </Button>
       </div>
 
@@ -329,7 +329,7 @@ function UtilisateursSection() {
             </div>
           </div>
           <div className="flex gap-2">
-            <Button size="sm" className="h-8 text-xs" onClick={handleInvite}>Envoyer l&apos;invitation</Button>
+            <Button size="sm" className="h-8 text-xs" onClick={handleInvite}>Ajouter l'utilisateur</Button>
             <Button size="sm" variant="outline" className="h-8 text-xs" onClick={() => setShowInvite(false)}>Annuler</Button>
           </div>
         </div>

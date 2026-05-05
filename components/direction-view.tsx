@@ -10,6 +10,7 @@ import {
   Trash2, Pencil, Search, LayoutGrid, List, ArrowLeft,
   File, FileSpreadsheet, Image, Upload, Users, Check,
   FolderPlus, FilePlus, FolderUp, CheckSquare, Square,
+  Eye,
 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -1142,6 +1143,9 @@ function FileList({
                   <p className="text-[10px] text-muted-foreground mt-0.5">{file.size} - {file.date}</p>
                 </div>
                 <div className="flex gap-1 mt-2 opacity-0 group-hover:opacity-100 transition-opacity" onClick={e => e.stopPropagation()}>
+                  {/* <Button variant="outline" size="icon" className="h-6 w-6 rounded">
+                    <Eye className="h-3 w-3" />
+                  </Button> */}
                   <Button variant="outline" size="icon" className="h-6 w-6 rounded">
                     <Download className="h-3 w-3" />
                   </Button>
@@ -1205,6 +1209,9 @@ function FileList({
                 className="flex items-center gap-1 justify-end"
                 onClick={e => e.stopPropagation()}
               >
+                <Button variant="ghost" size="icon" onClick={() => onFileOpen(file)} className="h-7 w-7 text-muted-foreground hover:text-foreground opacity-0 group-hover:opacity-100">
+                  <Eye className="h-3.5 w-3.5" />
+                </Button>
                 <Button variant="ghost" size="icon" className="h-7 w-7 text-muted-foreground hover:text-foreground opacity-0 group-hover:opacity-100">
                   <Download className="h-3.5 w-3.5" />
                 </Button>
