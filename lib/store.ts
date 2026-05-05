@@ -151,22 +151,22 @@ const INITIAL_DIRECTIONS: Direction[] = [
     access: "Restreint",
     agences: [
       {
-        id: "agence-plateau",
-        name: "Agence Plateau",
-        ville: "Abidjan",
-        quartier: "Plateau",
+        id: "agence-poto-poto",
+        name: "Agence Poto-Poto",
+        ville: "Brazzaville",
+        quartier: "Poto-Poto",
         date: "01-01-2026",
         description: "Agence principale centre-ville",
         responsable: "M. Brou",
         armoires: [],
       },
       {
-        id: "agence-cocody",
-        name: "Agence Cocody",
-        ville: "Abidjan",
-        quartier: "Cocody",
+        id: "agence-bacongo",
+        name: "Agence Bacongo",
+        ville: "Brazzaville",
+        quartier: "Bacongo",
         date: "15-02-2026",
-        description: "Agence residentielle nord",
+        description: "Agence secteur commercial",
         responsable: "K. Assi",
         armoires: [],
       },
@@ -439,9 +439,9 @@ const INITIAL_DIRECTIONS: Direction[] = [
     agences: [
       {
         id: "agence-marcory",
-        name: "Agence Marcory",
-        ville: "Abidjan",
-        quartier: "Marcory",
+        name: "Agence Moungali",
+        ville: "Brazzaville",
+        quartier: "Moungali",
         date: "01-03-2026",
         responsable: "T. Goli",
         armoires: [],
@@ -619,7 +619,7 @@ const INITIAL_NOTIFICATIONS: Notification[] = [
   { id: "n3", type: "success", title: "Workflow termine", message: "Contrat CDI signe par toutes les parties", date: "22-04-2026 16:30", read: true },
 ]
 
-// ─── Store Class ──────────────────────────────────────────────────────────────
+// ─── Store Class ──────────────────────────────────���───────────────────────────
 
 class Store {
   private directions: Direction[] = [...INITIAL_DIRECTIONS]
