@@ -1,71 +1,50 @@
 "use client"
 
-import { Upload, FileUp, CheckCircle, Clock, FileText } from "lucide-react"
+import { Upload, FileUp, ScanLine, Camera, X, Check } from "lucide-react"
 import { Button } from "@/components/ui/button"
-import { useState, useCallback, useRef, useEffect } from "react"
+import { useState, useCallback, useRef } from "react"
 import { cn } from "@/lib/utils"
 import { DocumentPanel } from "@/components/document-panel"
 import { uploadManager } from "@/lib/upload-manager"
 
-interface RecentDocument {
-  id: string
-  name: string
-  type: string
-  size: string
-  date: string
-  status: "En attente" | "En validation" | "Approuve" | "Rejete"
-}
-
 export function UploadZone() {
   const [isDragging, setIsDragging] = useState(false)
   const [isPanelOpen, setIsPanelOpen] = useState(false)
+  const [isScanPanelOpen, setIsScanPanelOpen] = useState(false)
   const [selectedFile, setSelectedFile] = useState<{ name: string; url: string | null; type: string; file: File | null } | null>(null)
-  const [recentDocuments, setRecentDocuments] = useState<RecentDocument[]>([])
+  const [scanStatus, setScanStatus] = useState<"idle" | "scanning" | "done">("idle")
+  const [scannedPages, setScannedPages] = useState(0)
   const fileInputRef = useRef<HTMLInputElement>(null)
-
-  // Load recent documents from localStorage
-  useEffect(() => {
-    const saved = localStorage.getItem('recentDocuments')
-    if (saved) {
-      try {
-        setRecentDocuments(JSON.parse(saved))
-      } catch (e) {
-        console.error('Failed to parse recent documents', e)
-      }
-    }
-  }, [])
-
-  // Save recent documents to localStorage
-  const saveToRecent = (doc: RecentDocument) => {
-    const updated = [doc, ...recentDocuments.slice(0, 9)]
-    setRecentDocuments(updated)
-    localStorage.setItem('recentDocuments', JSON.stringify(updated))
-  }
 
   // Handle file upload with chunks
   const handleUpload = (file: File) => {
     const fileId = `${Date.now()}-${Math.random()}`
-    
-    // Add to recent documents immediately
-    const newDoc: RecentDocument = {
-      id: fileId,
-      name: file.name,
-      type: file.type.split('/')[1].toUpperCase() || 'FILE',
-      size: `${(file.size / 1024 / 1024).toFixed(1)} MB`,
-      date: new Date().toLocaleDateString('fr-FR'),
-      status: 'En attente'
-    }
-    saveToRecent(newDoc)
-
-    // Start chunked upload in background
     uploadManager.uploadFile(file, fileId)
-
-    // Also show panel for first file
     if (!isPanelOpen) {
       const url = URL.createObjectURL(file)
       setSelectedFile({ name: file.name, url, type: file.type, file })
       setIsPanelOpen(true)
     }
+  }
+
+  const handleStartScan = () => {
+    setScanStatus("scanning")
+    setScannedPages(0)
+    let count = 0
+    const interval = setInterval(() => {
+      count++
+      setScannedPages(count)
+      if (count >= 3) {
+        clearInterval(interval)
+        setScanStatus("done")
+      }
+    }, 1200)
+  }
+
+  const handleCloseScan = () => {
+    setIsScanPanelOpen(false)
+    setScanStatus("idle")
+    setScannedPages(0)
   }
 
   const handleDragOver = useCallback((e: React.DragEvent) => {
@@ -124,7 +103,7 @@ export function UploadZone() {
             onDragLeave={handleDragLeave}
             onDrop={handleDrop}
             className={cn(
-              "relative rounded-3xl border border-dashed transition-all flex flex-col items-center justify-center py-16 cursor-pointer gap-5",
+              "relative rounded-3xl border border-dashed transition-all flex flex-col items-center justify-center py-12 cursor-pointer gap-5",
               isDragging
                 ? "border-foreground bg-foreground/5 scale-[1.005]"
                 : "border-border hover:border-foreground/30"
@@ -150,21 +129,131 @@ export function UploadZone() {
               </p>
             </div>
 
-            <Button
-              type="button"
-              variant="outline"
-              className="mt-2 gap-2 rounded-full px-5 h-10"
-              onClick={(e) => {
-                e.stopPropagation()
-                handleClick()
-              }}
-            >
-              <FileUp className="h-4 w-4" />
-              Choisir des fichiers
-            </Button>
+            <div className="flex items-center gap-3" onClick={e => e.stopPropagation()}>
+              <Button
+                type="button"
+                variant="outline"
+                className="gap-2 rounded-full px-5 h-10"
+                onClick={handleClick}
+              >
+                <FileUp className="h-4 w-4" />
+                Choisir des fichiers
+              </Button>
+              <Button
+                type="button"
+                variant="outline"
+                className="gap-2 rounded-full px-5 h-10"
+                onClick={() => setIsScanPanelOpen(true)}
+              >
+                <ScanLine className="h-4 w-4" />
+                Scanner
+              </Button>
+            </div>
           </div>
         </div>
       </div>
+
+      {/* Scanner panel overlay */}
+      {isScanPanelOpen && (
+        <>
+          <div className="fixed inset-0 bg-black/30 z-40" onClick={handleCloseScan} />
+          <div className="fixed top-0 right-0 h-full w-[440px] bg-card border-l border-border z-50 flex flex-col shadow-xl">
+            <div className="flex items-center justify-between px-5 py-4 border-b border-border">
+              <h3 className="text-sm font-semibold text-foreground">Numerisation de document</h3>
+              <Button variant="ghost" size="icon" className="h-7 w-7" onClick={handleCloseScan}>
+                <X className="h-4 w-4" />
+              </Button>
+            </div>
+            <div className="flex-1 p-5 space-y-4 overflow-y-auto">
+              <div className="rounded-lg border border-border p-8 flex flex-col items-center gap-4 bg-muted/20">
+                <div className={cn(
+                  "h-20 w-20 rounded-2xl flex items-center justify-center transition-all",
+                  scanStatus === "scanning" ? "bg-primary/10 animate-pulse" : "bg-muted"
+                )}>
+                  {scanStatus === "scanning"
+                    ? <ScanLine className="h-10 w-10 text-primary" />
+                    : scanStatus === "done"
+                      ? <Check className="h-10 w-10 text-emerald-600" />
+                      : <Camera className="h-10 w-10 text-muted-foreground" />
+                  }
+                </div>
+                <div className="text-center">
+                  {scanStatus === "idle" && (
+                    <>
+                      <p className="text-sm font-medium text-foreground">Pret a scanner</p>
+                      <p className="text-xs text-muted-foreground mt-1">Placez le document dans le scanner puis lancez la numerisation</p>
+                    </>
+                  )}
+                  {scanStatus === "scanning" && (
+                    <>
+                      <p className="text-sm font-medium text-foreground">Numerisation en cours...</p>
+                      <p className="text-xs text-muted-foreground mt-1">{scannedPages} page{scannedPages > 1 ? "s" : ""} numerisee{scannedPages > 1 ? "s" : ""}</p>
+                    </>
+                  )}
+                  {scanStatus === "done" && (
+                    <>
+                      <p className="text-sm font-medium text-emerald-600">Numerisation terminee</p>
+                      <p className="text-xs text-muted-foreground mt-1">{scannedPages} page{scannedPages > 1 ? "s" : ""} prete{scannedPages > 1 ? "s" : ""} a l&apos;import</p>
+                    </>
+                  )}
+                </div>
+                {scanStatus === "idle" && (
+                  <Button className="gap-2 rounded" onClick={handleStartScan}>
+                    <ScanLine className="h-4 w-4" />
+                    Lancer la numerisation
+                  </Button>
+                )}
+                {scanStatus === "scanning" && (
+                  <Button variant="outline" className="gap-2 rounded" onClick={() => setScanStatus("idle")}>
+                    <X className="h-4 w-4" />
+                    Annuler
+                  </Button>
+                )}
+                {scanStatus === "done" && (
+                  <Button variant="outline" className="gap-2 rounded" onClick={() => { setScanStatus("idle"); setScannedPages(0) }}>
+                    Nouvelle numerisation
+                  </Button>
+                )}
+              </div>
+
+              <div className="space-y-3">
+                <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Parametres</p>
+                <div className="grid grid-cols-2 gap-2 text-xs">
+                  <div className="p-3 rounded border border-border bg-muted/20">
+                    <p className="text-muted-foreground">Resolution</p>
+                    <p className="font-medium text-foreground mt-0.5">300 DPI</p>
+                  </div>
+                  <div className="p-3 rounded border border-border bg-muted/20">
+                    <p className="text-muted-foreground">Format</p>
+                    <p className="font-medium text-foreground mt-0.5">PDF / A4</p>
+                  </div>
+                  <div className="p-3 rounded border border-border bg-muted/20">
+                    <p className="text-muted-foreground">Couleur</p>
+                    <p className="font-medium text-foreground mt-0.5">Noir & Blanc</p>
+                  </div>
+                  <div className="p-3 rounded border border-border bg-muted/20">
+                    <p className="text-muted-foreground">OCR</p>
+                    <p className="font-medium text-foreground mt-0.5">Actif</p>
+                  </div>
+                </div>
+              </div>
+            </div>
+            <div className="p-5 border-t border-border flex gap-2">
+              <Button variant="outline" className="flex-1 h-9 text-sm rounded" onClick={handleCloseScan}>
+                Annuler
+              </Button>
+              <Button
+                className="flex-1 h-9 text-sm rounded"
+                disabled={scanStatus !== "done"}
+                onClick={handleCloseScan}
+              >
+                <ScanLine className="h-3.5 w-3.5 mr-1.5" />
+                Importer le scan
+              </Button>
+            </div>
+          </div>
+        </>
+      )}
 
       {/* Recent Documents Table */}
       {/* {recentDocuments.length > 0 && (

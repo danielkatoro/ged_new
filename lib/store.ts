@@ -42,6 +42,17 @@ export interface Armoire {
   dossiers: Dossier[]
 }
 
+export interface Agence {
+  id: string
+  name: string
+  ville: string
+  quartier?: string
+  date: string
+  description?: string
+  responsable?: string
+  armoires: Armoire[]
+}
+
 export interface Direction {
   id: string
   name: string
@@ -50,6 +61,7 @@ export interface Direction {
   members: number
   access: "Restreint" | "Interne" | "Public"
   armoires: Armoire[]
+  agences: Agence[]
 }
 
 export interface User {
@@ -137,6 +149,28 @@ const INITIAL_DIRECTIONS: Direction[] = [
     description: "Direction principale du groupe",
     members: 12,
     access: "Restreint",
+    agences: [
+      {
+        id: "agence-plateau",
+        name: "Agence Plateau",
+        ville: "Abidjan",
+        quartier: "Plateau",
+        date: "01-01-2026",
+        description: "Agence principale centre-ville",
+        responsable: "M. Brou",
+        armoires: [],
+      },
+      {
+        id: "agence-cocody",
+        name: "Agence Cocody",
+        ville: "Abidjan",
+        quartier: "Cocody",
+        date: "15-02-2026",
+        description: "Agence residentielle nord",
+        responsable: "K. Assi",
+        armoires: [],
+      },
+    ],
     armoires: [
       {
         id: "finance",
@@ -402,6 +436,17 @@ const INITIAL_DIRECTIONS: Direction[] = [
     description: "Division technologique",
     members: 8,
     access: "Interne",
+    agences: [
+      {
+        id: "agence-marcory",
+        name: "Agence Marcory",
+        ville: "Abidjan",
+        quartier: "Marcory",
+        date: "01-03-2026",
+        responsable: "T. Goli",
+        armoires: [],
+      },
+    ],
     armoires: [
       {
         id: "projets-tech",
@@ -424,6 +469,7 @@ const INITIAL_DIRECTIONS: Direction[] = [
     description: "Operations internationales",
     members: 6,
     access: "Restreint",
+    agences: [],
     armoires: [
       {
         id: "ops-yao",
@@ -446,6 +492,7 @@ const INITIAL_DIRECTIONS: Direction[] = [
     description: "Services support et administratifs",
     members: 15,
     access: "Interne",
+    agences: [],
     armoires: [],
   },
   {
@@ -455,6 +502,7 @@ const INITIAL_DIRECTIONS: Direction[] = [
     description: "Logistique et operations",
     members: 10,
     access: "Interne",
+    agences: [],
     armoires: [],
   },
   {
@@ -464,6 +512,7 @@ const INITIAL_DIRECTIONS: Direction[] = [
     description: "Direction RH centrale",
     members: 5,
     access: "Restreint",
+    agences: [],
     armoires: [],
   },
 ]
@@ -605,6 +654,7 @@ class Store {
       members: 0,
       access: "Interne",
       armoires: [],
+      agences: [],
     }
     this.directions = [...this.directions, dir]
     this.addAuditLog("Direction creee", "C. Boka", name, "direction")
@@ -622,6 +672,67 @@ class Store {
     this.directions = this.directions.filter(d => d.id !== id)
     if (dir) this.addAuditLog("Direction supprimee", "C. Boka", dir.name, "direction")
     this.notify()
+  }
+
+  // ─── Agences ────────────────────────────────────────────────────────────────
+
+  addAgence(directionId: string, data: { name: string; ville: string; quartier?: string; description?: string; responsable?: string }) {
+    const agence: Agence = {
+      id: `agence-${Date.now()}`,
+      name: data.name,
+      ville: data.ville,
+      quartier: data.quartier,
+      date: new Date().toLocaleDateString("fr-FR").replace(/\//g, "-"),
+      description: data.description,
+      responsable: data.responsable,
+      armoires: [],
+    }
+    this.directions = this.directions.map(d =>
+      d.id === directionId ? { ...d, agences: [...(d.agences ?? []), agence] } : d
+    )
+    this.addAuditLog("Agence creee", "C. Boka", data.name, "direction")
+    this.notify()
+    return agence
+  }
+
+  updateAgence(directionId: string, agenceId: string, updates: Partial<Agence>) {
+    this.directions = this.directions.map(d =>
+      d.id === directionId
+        ? { ...d, agences: (d.agences ?? []).map(a => a.id === agenceId ? { ...a, ...updates } : a) }
+        : d
+    )
+    this.notify()
+  }
+
+  deleteAgence(directionId: string, agenceId: string) {
+    this.directions = this.directions.map(d =>
+      d.id === directionId
+        ? { ...d, agences: (d.agences ?? []).filter(a => a.id !== agenceId) }
+        : d
+    )
+    this.notify()
+  }
+
+  addArmoireToAgence(directionId: string, agenceId: string, name: string) {
+    const armoire: Armoire = {
+      id: `arm-${Date.now()}`,
+      name,
+      date: new Date().toLocaleDateString("fr-FR").replace(/\//g, "-"),
+      dossiers: [],
+    }
+    this.directions = this.directions.map(d =>
+      d.id === directionId
+        ? {
+            ...d,
+            agences: (d.agences ?? []).map(a =>
+              a.id === agenceId ? { ...a, armoires: [...a.armoires, armoire] } : a
+            ),
+          }
+        : d
+    )
+    this.addAuditLog("Armoire creee", "C. Boka", name, "armoire")
+    this.notify()
+    return armoire
   }
 
   // ─── Armoires ───────────────────────────────────────────────────────────────

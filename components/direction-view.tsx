@@ -3,13 +3,14 @@
 import { useState, useEffect, useCallback, useRef } from "react"
 import { useSearchParams } from "next/navigation"
 import { cn } from "@/lib/utils"
-import { store, type Direction, type Armoire, type Dossier, type DocFile } from "@/lib/store"
+import { store, type Direction, type Agence, type Armoire, type Dossier, type DocFile } from "@/lib/store"
 import {
   Building2, MoreHorizontal, Plus, X, ChevronRight,
   Archive, Folder, FolderOpen, FileText, Download,
   Trash2, Pencil, Search, LayoutGrid, List, ArrowLeft,
   File, FileSpreadsheet, Image, Upload, Users, Check,
   FolderPlus, FilePlus, FolderUp, CheckSquare, Square,
+  MapPin, ScanLine, Camera,
 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -336,6 +337,126 @@ function DossierPanel({
   )
 }
 
+// ─── Agence Create/Edit Panel ─────────────────────────────────────────────────
+
+function AgencePanel({
+  open,
+  onClose,
+  agence,
+  onSave,
+}: {
+  open: boolean
+  onClose: () => void
+  agence?: Agence | null
+  onSave: (data: { name: string; ville: string; quartier: string; description: string; responsable: string }) => void
+}) {
+  const [name, setName] = useState(agence?.name ?? "")
+  const [ville, setVille] = useState(agence?.ville ?? "")
+  const [quartier, setQuartier] = useState(agence?.quartier ?? "")
+  const [description, setDescription] = useState(agence?.description ?? "")
+  const [responsable, setResponsable] = useState(agence?.responsable ?? "")
+
+  useEffect(() => {
+    if (open) {
+      setName(agence?.name ?? "")
+      setVille(agence?.ville ?? "")
+      setQuartier(agence?.quartier ?? "")
+      setDescription(agence?.description ?? "")
+      setResponsable(agence?.responsable ?? "")
+    }
+  }, [open, agence])
+
+  const handleSave = () => {
+    if (!name.trim() || !ville.trim()) return
+    onSave({ name: name.trim(), ville: ville.trim(), quartier: quartier.trim(), description: description.trim(), responsable: responsable.trim() })
+    onClose()
+  }
+
+  return (
+    <>
+      <div
+        className={cn(
+          "fixed inset-0 bg-black/30 z-40 transition-opacity duration-200",
+          open ? "opacity-100" : "opacity-0 pointer-events-none"
+        )}
+        onClick={onClose}
+      />
+      <div
+        className={cn(
+          "fixed top-0 right-0 h-full w-96 bg-card border-l border-border z-50 flex flex-col shadow-xl transition-transform duration-300",
+          open ? "translate-x-0" : "translate-x-full"
+        )}
+      >
+        <div className="flex items-center justify-between px-5 py-4 border-b border-border">
+          <h3 className="text-sm font-semibold text-foreground">
+            {agence ? "Modifier l'Agence" : "Nouvelle Agence"}
+          </h3>
+          <Button variant="ghost" size="icon" className="h-7 w-7" onClick={onClose}>
+            <X className="h-4 w-4" />
+          </Button>
+        </div>
+        <div className="flex-1 p-5 space-y-4 overflow-y-auto">
+          <div className="space-y-1.5">
+            <label className="text-xs font-medium text-muted-foreground">Nom *</label>
+            <Input
+              value={name}
+              onChange={e => setName(e.target.value)}
+              placeholder="Ex: Agence Plateau"
+              className="h-9 text-sm rounded"
+              autoFocus
+            />
+          </div>
+          <div className="space-y-1.5">
+            <label className="text-xs font-medium text-muted-foreground">Ville *</label>
+            <Input
+              value={ville}
+              onChange={e => setVille(e.target.value)}
+              placeholder="Ex: Abidjan"
+              className="h-9 text-sm rounded"
+            />
+          </div>
+          <div className="space-y-1.5">
+            <label className="text-xs font-medium text-muted-foreground">Quartier</label>
+            <Input
+              value={quartier}
+              onChange={e => setQuartier(e.target.value)}
+              placeholder="Ex: Cocody, Marcory..."
+              className="h-9 text-sm rounded"
+            />
+          </div>
+          <div className="space-y-1.5">
+            <label className="text-xs font-medium text-muted-foreground">Responsable</label>
+            <Input
+              value={responsable}
+              onChange={e => setResponsable(e.target.value)}
+              placeholder="Nom du responsable"
+              className="h-9 text-sm rounded"
+            />
+          </div>
+          <div className="space-y-1.5">
+            <label className="text-xs font-medium text-muted-foreground">Description</label>
+            <Textarea
+              value={description}
+              onChange={e => setDescription(e.target.value)}
+              placeholder="Description de l'agence..."
+              className="text-sm rounded resize-none"
+              rows={3}
+            />
+          </div>
+        </div>
+        <div className="p-5 border-t border-border flex gap-2">
+          <Button variant="outline" className="flex-1 h-9 text-sm rounded" onClick={onClose}>
+            Annuler
+          </Button>
+          <Button className="flex-1 h-9 text-sm rounded" onClick={handleSave} disabled={!name.trim() || !ville.trim()}>
+            {agence ? "Sauvegarder" : "Creer"}
+          </Button>
+        </div>
+      </div>
+    </>
+  )
+}
+
 // ─── Import Files Panel ───────────────────────────────────────────────────────
 
 function ImportFilesPanel({
@@ -347,12 +468,20 @@ function ImportFilesPanel({
   onClose: () => void
   onImport: (files: File[]) => void
 }) {
+  const [tab, setTab] = useState<"upload" | "scan">("upload")
   const [isDragging, setIsDragging] = useState(false)
   const [files, setFiles] = useState<File[]>([])
+  const [scanStatus, setScanStatus] = useState<"idle" | "scanning" | "done">("idle")
+  const [scannedPages, setScannedPages] = useState(0)
   const fileInputRef = useRef<HTMLInputElement>(null)
 
   useEffect(() => {
-    if (open) setFiles([])
+    if (open) {
+      setFiles([])
+      setTab("upload")
+      setScanStatus("idle")
+      setScannedPages(0)
+    }
   }, [open])
 
   const handleDragOver = useCallback((e: React.DragEvent) => {
@@ -390,6 +519,30 @@ function ImportFilesPanel({
     setFiles(prev => prev.filter((_, i) => i !== index))
   }
 
+  const handleStartScan = () => {
+    setScanStatus("scanning")
+    setScannedPages(0)
+    // Simulate scanning progress
+    let count = 0
+    const interval = setInterval(() => {
+      count++
+      setScannedPages(count)
+      if (count >= 3) {
+        clearInterval(interval)
+        setScanStatus("done")
+      }
+    }, 1200)
+  }
+
+  const handleImportScan = () => {
+    // Create a mock scanned file
+    const blob = new Blob(["scanned document content"], { type: "application/pdf" })
+    const fileName = `Scan_${new Date().toLocaleDateString("fr-FR").replace(/\//g, "-")}_${scannedPages}p.pdf`
+    const scannedFile = new window.File([blob], fileName, { type: "application/pdf" })
+    onImport([scannedFile])
+    onClose()
+  }
+
   return (
     <>
       <div
@@ -411,68 +564,186 @@ function ImportFilesPanel({
             <X className="h-4 w-4" />
           </Button>
         </div>
-        <div className="flex-1 p-5 space-y-4 overflow-y-auto">
-          {/* Drop Zone */}
-          <div
-            onDragOver={handleDragOver}
-            onDragLeave={handleDragLeave}
-            onDrop={handleDrop}
-            onClick={() => fileInputRef.current?.click()}
+
+        {/* Tabs */}
+        <div className="flex border-b border-border">
+          <button
+            onClick={() => setTab("upload")}
             className={cn(
-              "border-2 border-dashed rounded-lg p-8 text-center cursor-pointer transition-all",
-              isDragging
-                ? "border-primary bg-primary/5"
-                : "border-border hover:border-muted-foreground/50 hover:bg-muted/30"
+              "flex-1 flex items-center justify-center gap-2 px-4 py-3 text-sm font-medium transition-colors",
+              tab === "upload"
+                ? "text-foreground border-b-2 border-foreground"
+                : "text-muted-foreground hover:text-foreground"
             )}
           >
-            <Upload className={cn("h-10 w-10 mx-auto mb-3", isDragging ? "text-primary" : "text-muted-foreground")} />
-            <p className="text-sm font-medium text-foreground mb-1">
-              Glissez vos fichiers ici
-            </p>
-            <p className="text-xs text-muted-foreground">
-              ou cliquez pour selectionner
-            </p>
-            <input
-              ref={fileInputRef}
-              type="file"
-              multiple
-              className="hidden"
-              onChange={handleFileChange}
-            />
-          </div>
+            <Upload className="h-4 w-4" />
+            Telecharger
+          </button>
+          <button
+            onClick={() => setTab("scan")}
+            className={cn(
+              "flex-1 flex items-center justify-center gap-2 px-4 py-3 text-sm font-medium transition-colors",
+              tab === "scan"
+                ? "text-foreground border-b-2 border-foreground"
+                : "text-muted-foreground hover:text-foreground"
+            )}
+          >
+            <ScanLine className="h-4 w-4" />
+            Scanner
+          </button>
+        </div>
 
-          {/* Files list */}
-          {files.length > 0 && (
-            <div className="space-y-2">
-              <p className="text-xs font-medium text-muted-foreground">{files.length} fichier(s) selectionne(s)</p>
-              <div className="space-y-1 max-h-64 overflow-y-auto">
-                {files.map((file, index) => (
-                  <div key={index} className="flex items-center gap-2 p-2 rounded bg-muted/50">
-                    <FileText className="h-4 w-4 text-muted-foreground flex-shrink-0" />
-                    <span className="text-sm text-foreground flex-1 truncate">{file.name}</span>
-                    <span className="text-xs text-muted-foreground">{(file.size / 1024).toFixed(0)} KB</span>
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      className="h-6 w-6 text-muted-foreground hover:text-destructive"
-                      onClick={(e) => { e.stopPropagation(); removeFile(index) }}
-                    >
-                      <X className="h-3 w-3" />
-                    </Button>
+        <div className="flex-1 p-5 space-y-4 overflow-y-auto">
+          {tab === "upload" ? (
+            <>
+              {/* Drop Zone */}
+              <div
+                onDragOver={handleDragOver}
+                onDragLeave={handleDragLeave}
+                onDrop={handleDrop}
+                onClick={() => fileInputRef.current?.click()}
+                className={cn(
+                  "border-2 border-dashed rounded-lg p-8 text-center cursor-pointer transition-all",
+                  isDragging
+                    ? "border-primary bg-primary/5"
+                    : "border-border hover:border-muted-foreground/50 hover:bg-muted/30"
+                )}
+              >
+                <Upload className={cn("h-10 w-10 mx-auto mb-3", isDragging ? "text-primary" : "text-muted-foreground")} />
+                <p className="text-sm font-medium text-foreground mb-1">
+                  Glissez vos fichiers ici
+                </p>
+                <p className="text-xs text-muted-foreground">
+                  ou cliquez pour selectionner
+                </p>
+                <input
+                  ref={fileInputRef}
+                  type="file"
+                  multiple
+                  className="hidden"
+                  onChange={handleFileChange}
+                />
+              </div>
+
+              {/* Files list */}
+              {files.length > 0 && (
+                <div className="space-y-2">
+                  <p className="text-xs font-medium text-muted-foreground">{files.length} fichier(s) selectionne(s)</p>
+                  <div className="space-y-1 max-h-64 overflow-y-auto">
+                    {files.map((file, index) => (
+                      <div key={index} className="flex items-center gap-2 p-2 rounded bg-muted/50">
+                        <FileText className="h-4 w-4 text-muted-foreground flex-shrink-0" />
+                        <span className="text-sm text-foreground flex-1 truncate">{file.name}</span>
+                        <span className="text-xs text-muted-foreground">{(file.size / 1024).toFixed(0)} KB</span>
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="h-6 w-6 text-muted-foreground hover:text-destructive"
+                          onClick={(e) => { e.stopPropagation(); removeFile(index) }}
+                        >
+                          <X className="h-3 w-3" />
+                        </Button>
+                      </div>
+                    ))}
                   </div>
-                ))}
+                </div>
+              )}
+            </>
+          ) : (
+            /* Scanner tab */
+            <div className="space-y-4">
+              <div className="rounded-lg border border-border p-6 flex flex-col items-center gap-4 bg-muted/20">
+                <div className={cn(
+                  "h-20 w-20 rounded-2xl flex items-center justify-center transition-all",
+                  scanStatus === "scanning" ? "bg-primary/10 animate-pulse" : "bg-muted"
+                )}>
+                  {scanStatus === "scanning"
+                    ? <ScanLine className="h-10 w-10 text-primary" />
+                    : scanStatus === "done"
+                      ? <Check className="h-10 w-10 text-emerald-600" />
+                      : <Camera className="h-10 w-10 text-muted-foreground" />
+                  }
+                </div>
+                <div className="text-center">
+                  {scanStatus === "idle" && (
+                    <>
+                      <p className="text-sm font-medium text-foreground">Pret a scanner</p>
+                      <p className="text-xs text-muted-foreground mt-1">Placez le document dans le scanner puis lancez la numerisation</p>
+                    </>
+                  )}
+                  {scanStatus === "scanning" && (
+                    <>
+                      <p className="text-sm font-medium text-foreground">Numerisation en cours...</p>
+                      <p className="text-xs text-muted-foreground mt-1">{scannedPages} page{scannedPages > 1 ? "s" : ""} numerisee{scannedPages > 1 ? "s" : ""}</p>
+                    </>
+                  )}
+                  {scanStatus === "done" && (
+                    <>
+                      <p className="text-sm font-medium text-foreground text-emerald-600">Numerisation terminee</p>
+                      <p className="text-xs text-muted-foreground mt-1">{scannedPages} page{scannedPages > 1 ? "s" : ""} prete{scannedPages > 1 ? "s" : ""} a l&apos;import</p>
+                    </>
+                  )}
+                </div>
+                {scanStatus === "idle" && (
+                  <Button className="gap-2 rounded" onClick={handleStartScan}>
+                    <ScanLine className="h-4 w-4" />
+                    Lancer la numerisation
+                  </Button>
+                )}
+                {scanStatus === "scanning" && (
+                  <Button variant="outline" className="gap-2 rounded" onClick={() => setScanStatus("idle")}>
+                    <X className="h-4 w-4" />
+                    Annuler
+                  </Button>
+                )}
+                {scanStatus === "done" && (
+                  <Button variant="outline" className="gap-2 rounded" onClick={() => { setScanStatus("idle"); setScannedPages(0) }}>
+                    Nouvelle numerisation
+                  </Button>
+                )}
+              </div>
+
+              {/* Scanner settings */}
+              <div className="space-y-3">
+                <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Parametres</p>
+                <div className="grid grid-cols-2 gap-2 text-xs">
+                  <div className="p-3 rounded border border-border bg-muted/20">
+                    <p className="text-muted-foreground">Resolution</p>
+                    <p className="font-medium text-foreground mt-0.5">300 DPI</p>
+                  </div>
+                  <div className="p-3 rounded border border-border bg-muted/20">
+                    <p className="text-muted-foreground">Format</p>
+                    <p className="font-medium text-foreground mt-0.5">PDF / A4</p>
+                  </div>
+                  <div className="p-3 rounded border border-border bg-muted/20">
+                    <p className="text-muted-foreground">Couleur</p>
+                    <p className="font-medium text-foreground mt-0.5">Noir & Blanc</p>
+                  </div>
+                  <div className="p-3 rounded border border-border bg-muted/20">
+                    <p className="text-muted-foreground">OCR</p>
+                    <p className="font-medium text-foreground mt-0.5">Actif</p>
+                  </div>
+                </div>
               </div>
             </div>
           )}
         </div>
+
         <div className="p-5 border-t border-border flex gap-2">
           <Button variant="outline" className="flex-1 h-9 text-sm rounded" onClick={onClose}>
             Annuler
           </Button>
-          <Button className="flex-1 h-9 text-sm rounded" onClick={handleImport} disabled={files.length === 0}>
-            <Upload className="h-3.5 w-3.5 mr-1.5" />
-            Importer {files.length > 0 && `(${files.length})`}
-          </Button>
+          {tab === "upload" ? (
+            <Button className="flex-1 h-9 text-sm rounded" onClick={handleImport} disabled={files.length === 0}>
+              <Upload className="h-3.5 w-3.5 mr-1.5" />
+              Importer {files.length > 0 && `(${files.length})`}
+            </Button>
+          ) : (
+            <Button className="flex-1 h-9 text-sm rounded" onClick={handleImportScan} disabled={scanStatus !== "done"}>
+              <ScanLine className="h-3.5 w-3.5 mr-1.5" />
+              Importer le scan
+            </Button>
+          )}
         </div>
       </div>
     </>
@@ -487,12 +758,14 @@ function DirectionGrid({
   onCreate,
   onEdit,
   onDelete,
+  onAddAgence,
 }: {
   directions: Direction[]
   onOpen: (d: Direction) => void
   onCreate: (data: { name: string; description: string; directeur: string }) => void
   onEdit: (d: Direction, data: { name: string; description: string; directeur: string }) => void
   onDelete: (id: string) => void
+  onAddAgence: (d: Direction) => void
 }) {
   const [panelOpen, setPanelOpen] = useState(false)
   const [editTarget, setEditTarget] = useState<Direction | null>(null)
@@ -600,10 +873,26 @@ function DirectionGrid({
                 <p className="text-xs text-muted-foreground mb-4 line-clamp-2">{dir.description}</p>
               )}
 
+              {/* Stats row */}
+              <div className="flex items-center gap-3 mb-3 text-xs text-muted-foreground">
+                <span>{dir.armoires.length} armoire{dir.armoires.length !== 1 ? "s" : ""}</span>
+                <span className="text-border">|</span>
+                <span className="flex items-center gap-1">
+                  <MapPin className="h-3 w-3" />
+                  {(dir.agences ?? []).length} agence{(dir.agences ?? []).length !== 1 ? "s" : ""}
+                </span>
+              </div>
+
               {/* Footer */}
               <div className="flex items-center justify-between text-xs text-muted-foreground">
                 <span>{dir.date}</span>
-                <span>{dir.armoires.length} {dir.armoires.length <= 1 ? "armoire" : "armoires"}</span>
+                <button
+                  onClick={e => { e.stopPropagation(); onAddAgence(dir) }}
+                  className="flex items-center gap-1 hover:text-foreground transition-colors"
+                >
+                  <Plus className="h-3 w-3" />
+                  Agence
+                </button>
               </div>
             </div>
           ))}
@@ -705,13 +994,18 @@ function DirectionDetail({
   onBack,
   onAddArmoire,
   onAddDossier,
+  onAddAgence,
+  onDeleteAgence,
 }: {
   direction: Direction
   onBack: () => void
   onAddArmoire: (dirId: string, data: { name: string; icon: string; admins: string[] }) => void
   onAddDossier: (dirId: string, armoireId: string, name: string) => void
+  onAddAgence: (dirId: string, data: { name: string; ville: string; quartier: string; description: string; responsable: string }) => void
+  onDeleteAgence: (dirId: string, agenceId: string) => void
 }) {
   const searchParams = useSearchParams()
+  const [sidebarTab, setSidebarTab] = useState<"armoires" | "agences">("armoires")
   const [selectedArmoire, setSelectedArmoire] = useState<Armoire | null>(
     direction.armoires[0] ?? null
   )
@@ -722,6 +1016,7 @@ function DirectionDetail({
   const [armoirePanelOpen, setArmoirePanelOpen] = useState(false)
   const [dossierPanelOpen, setDossierPanelOpen] = useState(false)
   const [importPanelOpen, setImportPanelOpen] = useState(false)
+  const [agencePanelOpen, setAgencePanelOpen] = useState(false)
   const [selectedFiles, setSelectedFiles] = useState<Set<string>>(new Set())
 
   // Auto-select armoire from query params
@@ -745,9 +1040,8 @@ function DirectionDetail({
     setSelectedFiles(new Set())
   }
 
-  const handleImportFiles = (files: File[]) => {
-    // Simulate adding files - in reality this would upload them
-    console.log("[v0] Importing files:", files.map(f => f.name))
+  const handleImportFiles = (_files: File[]) => {
+    // Files would be uploaded to the server in a real implementation
   }
 
   const toggleFileSelection = (fileId: string) => {
@@ -781,7 +1075,7 @@ function DirectionDetail({
 
   return (
     <div className="flex h-[calc(100vh-56px)]">
-      {/* Left: Armoires list */}
+      {/* Left: Armoires / Agences sidebar */}
       <div className="w-56 border-r border-border flex flex-col flex-shrink-0 bg-card">
         <div className="flex items-center justify-between px-4 py-3 border-b border-border">
           <button
@@ -795,38 +1089,107 @@ function DirectionDetail({
             variant="ghost"
             size="icon"
             className="h-6 w-6 text-muted-foreground hover:text-foreground"
-            onClick={() => setArmoirePanelOpen(true)}
+            onClick={() => sidebarTab === "armoires" ? setArmoirePanelOpen(true) : setAgencePanelOpen(true)}
           >
             <Plus className="h-3.5 w-3.5" />
           </Button>
         </div>
 
+        {/* Tab switcher */}
+        <div className="flex border-b border-border text-xs">
+          <button
+            onClick={() => setSidebarTab("armoires")}
+            className={cn(
+              "flex-1 py-2 font-medium transition-colors",
+              sidebarTab === "armoires"
+                ? "text-foreground border-b-2 border-foreground"
+                : "text-muted-foreground hover:text-foreground"
+            )}
+          >
+            Armoires
+          </button>
+          <button
+            onClick={() => setSidebarTab("agences")}
+            className={cn(
+              "flex-1 py-2 font-medium transition-colors",
+              sidebarTab === "agences"
+                ? "text-foreground border-b-2 border-foreground"
+                : "text-muted-foreground hover:text-foreground"
+            )}
+          >
+            Agences
+          </button>
+        </div>
+
         <div className="flex-1 overflow-y-auto py-2">
-          {direction.armoires.length === 0 ? (
-            <p className="text-xs text-muted-foreground text-center mt-6 px-4">Aucune armoire</p>
+          {sidebarTab === "armoires" ? (
+            direction.armoires.length === 0 ? (
+              <p className="text-xs text-muted-foreground text-center mt-6 px-4">Aucune armoire</p>
+            ) : (
+              direction.armoires.map(arm => {
+                const isActive = selectedArmoire?.id === arm.id
+                const IconComp = getIconComponent(arm.icon || "archive")
+                return (
+                  <button
+                    key={arm.id}
+                    onClick={() => handleSelectArmoire(arm)}
+                    className={cn(
+                      "w-full flex items-center gap-2.5 px-4 py-2.5 text-left transition-colors text-sm",
+                      isActive
+                        ? "bg-muted text-foreground font-medium"
+                        : "text-muted-foreground hover:bg-muted/50 hover:text-foreground"
+                    )}
+                  >
+                    {isActive
+                      ? <FolderOpen className="h-4 w-4 flex-shrink-0 text-foreground" />
+                      : <IconComp className="h-4 w-4 flex-shrink-0" />
+                    }
+                    <span className="flex-1 truncate">{arm.name}</span>
+                  </button>
+                )
+              })
+            )
           ) : (
-            direction.armoires.map(arm => {
-              const isActive = selectedArmoire?.id === arm.id
-              const IconComp = getIconComponent(arm.icon || "archive")
-              return (
-                <button
-                  key={arm.id}
-                  onClick={() => handleSelectArmoire(arm)}
-                  className={cn(
-                    "w-full flex items-center gap-2.5 px-4 py-2.5 text-left transition-colors text-sm",
-                    isActive
-                      ? "bg-muted text-foreground font-medium"
-                      : "text-muted-foreground hover:bg-muted/50 hover:text-foreground"
-                  )}
+            /* Agences list */
+            (direction.agences ?? []).length === 0 ? (
+              <div className="flex flex-col items-center mt-8 px-4 gap-3">
+                <MapPin className="h-6 w-6 text-muted-foreground/40" />
+                <p className="text-xs text-muted-foreground text-center">Aucune agence</p>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="h-7 text-xs gap-1 w-full"
+                  onClick={() => setAgencePanelOpen(true)}
                 >
-                  {isActive
-                    ? <FolderOpen className="h-4 w-4 flex-shrink-0 text-foreground" />
-                    : <IconComp className="h-4 w-4 flex-shrink-0" />
-                  }
-                  <span className="flex-1 truncate">{arm.name}</span>
-                </button>
-              )
-            })
+                  <Plus className="h-3 w-3" />
+                  Ajouter
+                </Button>
+              </div>
+            ) : (
+              (direction.agences ?? []).map(agence => (
+                <div key={agence.id} className="group relative">
+                  <button
+                    className="w-full flex items-start gap-2.5 px-4 py-3 text-left transition-colors text-sm hover:bg-muted/50"
+                  >
+                    <MapPin className="h-4 w-4 flex-shrink-0 text-muted-foreground mt-0.5" />
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm text-foreground truncate">{agence.name}</p>
+                      <p className="text-[10px] text-muted-foreground truncate">
+                        {agence.quartier ? `${agence.quartier}, ` : ""}{agence.ville}
+                      </p>
+                    </div>
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      className="h-5 w-5 text-muted-foreground hover:text-destructive opacity-0 group-hover:opacity-100 transition-opacity flex-shrink-0 mt-0.5"
+                      onClick={e => { e.stopPropagation(); onDeleteAgence(direction.id, agence.id) }}
+                    >
+                      <X className="h-3 w-3" />
+                    </Button>
+                  </button>
+                </div>
+              ))
+            )
           )}
         </div>
       </div>
@@ -975,6 +1338,11 @@ function DirectionDetail({
         open={dossierPanelOpen}
         onClose={() => setDossierPanelOpen(false)}
         onSave={name => selectedArmoire && onAddDossier(direction.id, selectedArmoire.id, name)}
+      />
+      <AgencePanel
+        open={agencePanelOpen}
+        onClose={() => setAgencePanelOpen(false)}
+        onSave={data => onAddAgence(direction.id, data)}
       />
       <ImportFilesPanel
         open={importPanelOpen}
@@ -1270,11 +1638,23 @@ export function DirectionView() {
 
   const handleAddArmoire = (dirId: string, data: { name: string; icon: string; admins: string[] }) => {
     store.addArmoire(dirId, data.name)
-    // Update icon if store supports it
   }
 
   const handleAddDossier = (dirId: string, armoireId: string, name: string) => {
     store.addDossier(dirId, armoireId, name)
+  }
+
+  const handleAddAgenceFromGrid = (dir: Direction) => {
+    setOpenDirection(dir)
+    // Will open the agence panel — handled inside DirectionDetail
+  }
+
+  const handleAddAgence = (dirId: string, data: { name: string; ville: string; quartier: string; description: string; responsable: string }) => {
+    store.addAgence(dirId, data)
+  }
+
+  const handleDeleteAgence = (dirId: string, agenceId: string) => {
+    store.deleteAgence(dirId, agenceId)
   }
 
   if (openDirection) {
@@ -1284,6 +1664,8 @@ export function DirectionView() {
         onBack={() => setOpenDirection(null)}
         onAddArmoire={handleAddArmoire}
         onAddDossier={handleAddDossier}
+        onAddAgence={handleAddAgence}
+        onDeleteAgence={handleDeleteAgence}
       />
     )
   }
@@ -1295,6 +1677,7 @@ export function DirectionView() {
       onCreate={handleCreate}
       onEdit={handleEdit}
       onDelete={handleDelete}
+      onAddAgence={handleAddAgenceFromGrid}
     />
   )
 }
