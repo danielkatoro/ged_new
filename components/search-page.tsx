@@ -50,10 +50,11 @@ type SearchDoc = {
 // ─── Constants ────────────────────────────────────────────────────────────────
 
 const STATUS_CONFIG: Record<DocStatus, { label: string; icon: React.ElementType; cls: string; dot: string }> = {
-  "Approuve":      { label: "Approuve",      icon: CheckCircle2, cls: "text-emerald-700 bg-emerald-50 border border-emerald-200", dot: "bg-emerald-500" },
-  "En validation": { label: "En validation", icon: Clock,        cls: "text-amber-700 bg-amber-50 border border-amber-200",     dot: "bg-amber-500" },
+  
   "En attente":    { label: "En attente",    icon: AlertCircle,  cls: "text-slate-600 bg-slate-100 border border-slate-200",    dot: "bg-slate-400" },
-  "Rejete":        { label: "Rejete",        icon: XCircle,      cls: "text-red-700 bg-red-50 border border-red-200",           dot: "bg-red-500" },
+  "En validation": { label: "En validation", icon: Clock,        cls: "text-amber-700 bg-amber-50 border border-amber-200",     dot: "bg-amber-500" },
+  "Approuve":      { label: "Approuvé",      icon: CheckCircle2, cls: "text-emerald-700 bg-emerald-50 border border-emerald-200", dot: "bg-emerald-500" },
+  "Rejete":        { label: "Rejeté",        icon: XCircle,      cls: "text-red-700 bg-red-50 border border-red-200",           dot: "bg-red-500" },
 }
 
 const TYPE_COLOR: Record<string, string> = {
