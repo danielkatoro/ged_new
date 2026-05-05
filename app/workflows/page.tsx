@@ -71,7 +71,7 @@ export default function WorkflowsPage() {
           <p className="text-sm text-muted-foreground">4 workflows actifs ou recents</p>
           <Button size="sm" className="h-8 gap-1.5 text-xs rounded">
             <Plus className="h-3.5 w-3.5" />
-            Nouveau workflow
+            Nouveau document
           </Button>
         </div>
 

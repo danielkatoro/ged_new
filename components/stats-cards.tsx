@@ -15,7 +15,7 @@ const stats = [
     icon: Clock,
   },
   {
-    title: "INDEXES CETTE SEMAINE",
+    title: "DOCUMENTS  TRAITÉS",
     value: "127",
     sub: "OCR: 94% precision",
     icon: Zap,
