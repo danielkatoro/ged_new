@@ -41,7 +41,7 @@ export function DocumentsTable() {
           <thead>
             <tr className="border-b border-border">
               <th className="text-left text-xs font-medium text-muted-foreground px-5 py-3">Document</th>
-              <th className="text-left text-xs font-medium text-muted-foreground px-3 py-3 hidden md:table-cell">Armoire</th>
+              <th className="text-left text-xs font-medium text-muted-foreground px-3 py-3 hidden md:table-cell">Direction</th>
               <th className="text-left text-xs font-medium text-muted-foreground px-3 py-3 hidden lg:table-cell">Date</th>
               <th className="text-left text-xs font-medium text-muted-foreground px-3 py-3">Statut</th>
               <th className="px-5 py-3" />
