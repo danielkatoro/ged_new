@@ -22,6 +22,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
+import { Checkbox } from "@/components/ui/checkbox"
 import { DocumentDetailPanel } from "@/components/document-detail-panel"
 import {
   Select,
@@ -1006,8 +1007,10 @@ function DirectionDetail({
 }) {
   const searchParams = useSearchParams()
   const [selectedAgence, setSelectedAgence] = useState<Agence | null>(null)
+  const [selectedArmoire, setSelectedArmoire] = useState<Armoire | null>(null)
   const [selectedDossier, setSelectedDossier] = useState<Dossier | null>(null)
   const [selectedFile, setSelectedFile] = useState<DocFile | null>(null)
+  const [editingAgence, setEditingAgence] = useState<Agence | null>(null)
   const [search, setSearch] = useState("")
   const [view, setView] = useState<"grid" | "list">("grid")
   const [armoirePanelOpen, setArmoirePanelOpen] = useState(false)
@@ -1016,15 +1019,51 @@ function DirectionDetail({
   const [agencePanelOpen, setAgencePanelOpen] = useState(false)
   const [selectedFiles, setSelectedFiles] = useState<Set<string>>(new Set())
 
-  // Auto-select armoire from query params
-  // When armoire changes, reset dossier
+  // Auto-select first agence on mount
+  useEffect(() => {
+    if (!selectedAgence && (direction.agences ?? []).length > 0) {
+      setSelectedAgence((direction.agences ?? [])[0])
+      setSelectedArmoire(null)
+      setSelectedDossier(null)
+    }
+  }, [direction.agences, selectedAgence])
+
   const handleSelectArmoire = (arm: Armoire) => {
-    // Armoires are now displayed as cards only
+    setSelectedArmoire(arm)
+    setSelectedDossier(null)
+    setSelectedFile(null)
+  }
+
+  const handleSelectDossier = (dos: Dossier) => {
+    setSelectedDossier(dos)
+    setSelectedFile(null)
+  }
+
+  const toggleFileSelection = (fileId: string) => {
+    const newSelection = new Set(selectedFiles)
+    if (newSelection.has(fileId)) {
+      newSelection.delete(fileId)
+    } else {
+      newSelection.add(fileId)
+    }
+    setSelectedFiles(newSelection)
+  }
+
+  const selectAllFiles = () => {
+    if (selectedDossier && selectedDossier.files.length > 0) {
+      const allIds = new Set(selectedDossier.files.map(f => f.id))
+      setSelectedFiles(selectedFiles.size === allIds.size ? new Set() : allIds)
+    }
   }
 
   const handleImportFiles = (_files: File[]) => {
     // Files would be uploaded to the server in a real implementation
   }
+
+  // Filter armoires by selected agence
+  const filteredArmoires = selectedAgence
+    ? direction.armoires.filter(arm => selectedAgence.armoires.some(a => a.id === arm.id))
+    : direction.armoires
 
   return (
     <div className="flex h-[calc(100vh-56px)]">
@@ -1092,10 +1131,10 @@ function DirectionDetail({
                   <Button
                     variant="ghost"
                     size="icon"
-                    className="h-5 w-5 text-muted-foreground hover:text-destructive opacity-0 group-hover:opacity-100 transition-opacity flex-shrink-0 mt-0.5"
-                    onClick={e => { e.stopPropagation(); onDeleteAgence(direction.id, agence.id) }}
+                    className="h-5 w-5 text-muted-foreground hover:text-foreground opacity-0 group-hover:opacity-100 transition-opacity flex-shrink-0 mt-0.5"
+                    onClick={e => { e.stopPropagation(); setEditingAgence(agence); setAgencePanelOpen(true) }}
                   >
-                    <X className="h-3 w-3" />
+                    <Pencil className="h-3 w-3" />
                   </Button>
                 </button>
               </div>
@@ -1156,20 +1195,21 @@ function DirectionDetail({
           </div>
         </div>
 
-        {/* Armoires Grid */}
+        {/* Armoires Grid or Details */}
         <div className="flex-1 overflow-y-auto p-6">
-          {direction.armoires.length === 0 ? (
+          {filteredArmoires.length === 0 ? (
             <div className="flex flex-col items-center justify-center h-full gap-4">
               <Archive className="h-12 w-12 text-muted-foreground/20" />
-              <p className="text-muted-foreground text-center">Aucune armoire creee</p>
+              <p className="text-muted-foreground text-center">Aucune armoire dans cette agence</p>
               <Button onClick={() => setArmoirePanelOpen(true)} className="gap-2">
                 <Plus className="h-4 w-4" />
-                Creer la premiere armoire
+                Creer une armoire
               </Button>
             </div>
-          ) : (
+          ) : !selectedArmoire ? (
+            /* Afficher la grille d'armoires */
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-              {direction.armoires.map(armoire => {
+              {filteredArmoires.map(armoire => {
                 const IconComp = getIconComponent(armoire.icon || "archive")
                 const dossierCount = armoire.dossiers.length
                 const fileCount = armoire.dossiers.reduce((sum, dos) => sum + dos.files.length, 0)
@@ -1178,6 +1218,7 @@ function DirectionDetail({
                   <div
                     key={armoire.id}
                     className="group relative bg-card border border-border rounded-lg p-4 hover:border-foreground/30 hover:shadow-md transition-all cursor-pointer"
+                    onClick={() => handleSelectArmoire(armoire)}
                   >
                     <div className="flex items-start justify-between mb-3">
                       <div className="flex items-center gap-3 flex-1">
@@ -1232,6 +1273,102 @@ function DirectionDetail({
                 )
               })}
             </div>
+          ) : (
+            /* Afficher dossiers/fichiers de l'armoire selectionnee */
+            <div className="space-y-4">
+              <div className="flex items-center gap-2 mb-4">
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="h-8 w-8"
+                  onClick={() => handleSelectArmoire(null as any)}
+                >
+                  <ArrowLeft className="h-4 w-4" />
+                </Button>
+                <div className="flex-1">
+                  <h3 className="text-lg font-semibold text-foreground">{selectedArmoire.name}</h3>
+                  <p className="text-xs text-muted-foreground">{selectedArmoire.dossiers.length} dossier(s)</p>
+                </div>
+              </div>
+
+              {!selectedDossier ? (
+                /* Afficher les dossiers */
+                <div className="space-y-2">
+                  {selectedArmoire.dossiers.length === 0 ? (
+                    <div className="flex flex-col items-center justify-center py-12 text-muted-foreground gap-3">
+                      <Folder className="h-8 w-8 opacity-30" />
+                      <p className="text-sm">Aucun dossier</p>
+                      <Button variant="outline" size="sm" onClick={() => setDossierPanelOpen(true)}>
+                        <Plus className="h-3.5 w-3.5 mr-1" />
+                        Nouveau dossier
+                      </Button>
+                    </div>
+                  ) : (
+                    <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
+                      {selectedArmoire.dossiers.map(dossier => (
+                        <button
+                          key={dossier.id}
+                          onClick={() => handleSelectDossier(dossier)}
+                          className="flex flex-col items-center gap-2 p-4 rounded-lg border border-border hover:bg-muted/50 transition-colors"
+                        >
+                          <Folder className="h-8 w-8 text-muted-foreground" />
+                          <p className="text-sm font-medium text-foreground text-center truncate">{dossier.name}</p>
+                          <p className="text-xs text-muted-foreground">{dossier.files.length} fichier(s)</p>
+                        </button>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              ) : (
+                /* Afficher les fichiers du dossier */
+                <div className="space-y-2">
+                  <div className="flex items-center gap-2 mb-4">
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      className="h-8 w-8"
+                      onClick={() => handleSelectDossier(null as any)}
+                    >
+                      <ArrowLeft className="h-4 w-4" />
+                    </Button>
+                    <div className="flex-1">
+                      <h4 className="font-medium text-foreground">{selectedDossier.name}</h4>
+                      <p className="text-xs text-muted-foreground">{selectedDossier.files.length} fichier(s)</p>
+                    </div>
+                  </div>
+
+                  {selectedDossier.files.length === 0 ? (
+                    <div className="flex flex-col items-center justify-center py-12 text-muted-foreground gap-3">
+                      <FileText className="h-8 w-8 opacity-30" />
+                      <p className="text-sm">Aucun fichier</p>
+                      <Button variant="outline" size="sm" onClick={() => setImportPanelOpen(true)}>
+                        <Upload className="h-3.5 w-3.5 mr-1" />
+                        Importer
+                      </Button>
+                    </div>
+                  ) : (
+                    <div className="space-y-1">
+                      {selectedDossier.files.map(file => (
+                        <div
+                          key={file.id}
+                          className="flex items-center gap-3 p-3 rounded border border-border hover:bg-muted/30 transition-colors"
+                        >
+                          <Checkbox
+                            checked={selectedFiles.has(file.id)}
+                            onCheckedChange={() => toggleFileSelection(file.id)}
+                          />
+                          <FileText className="h-4 w-4 text-muted-foreground flex-shrink-0" />
+                          <div className="flex-1 min-w-0">
+                            <p className="text-sm text-foreground truncate">{file.name}</p>
+                            <p className="text-xs text-muted-foreground">{file.date}</p>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
           )}
         </div>
       </div>
@@ -1249,8 +1386,16 @@ function DirectionDetail({
       />
       <AgencePanel
         open={agencePanelOpen}
-        onClose={() => setAgencePanelOpen(false)}
-        onSave={data => onAddAgence(direction.id, data)}
+        onClose={() => { setAgencePanelOpen(false); setEditingAgence(null) }}
+        agence={editingAgence}
+        onSave={data => {
+          if (editingAgence) {
+            store.updateAgence(direction.id, editingAgence.id, data)
+            setEditingAgence(null)
+          } else {
+            onAddAgence(direction.id, data)
+          }
+        }}
       />
       <ImportFilesPanel
         open={importPanelOpen}
