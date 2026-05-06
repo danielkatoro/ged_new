@@ -1061,9 +1061,7 @@ function DirectionDetail({
   }
 
   // Filter armoires by selected agence
-  const filteredArmoires = selectedAgence
-    ? direction.armoires.filter(arm => selectedAgence.armoires.some(a => a.id === arm.id))
-    : direction.armoires
+  const filteredArmoires = selectedAgence ? selectedAgence.armoires : []
 
   return (
     <div className="flex h-[calc(100vh-56px)]">
