@@ -10,7 +10,7 @@ import {
   Trash2, Pencil, Search, LayoutGrid, List, ArrowLeft,
   File, FileSpreadsheet, Image, Upload, Users, Check,
   FolderPlus, FilePlus, FolderUp, CheckSquare, Square,
-  MapPin, ScanLine, Camera,
+  Store, ScanLine, Camera,
 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -878,7 +878,7 @@ function DirectionGrid({
                 <span>{dir.armoires.length} armoire{dir.armoires.length !== 1 ? "s" : ""}</span>
                 <span className="text-border">|</span>
                 <span className="flex items-center gap-1">
-                  <MapPin className="h-3 w-3" />
+                  <Store className="h-3 w-3" />
                   {(dir.agences ?? []).length} agence{(dir.agences ?? []).length !== 1 ? "s" : ""}
                 </span>
               </div>
@@ -1017,18 +1017,6 @@ function DirectionDetail({
   const [selectedFiles, setSelectedFiles] = useState<Set<string>>(new Set())
 
   // Auto-select armoire from query params
-  useEffect(() => {
-    const armoireParam = searchParams.get('armoire')
-    if (armoireParam && direction.armoires.length > 0) {
-      const armoire = direction.armoires.find(a => a.name.toLowerCase().includes(armoireParam.toLowerCase()))
-      if (armoire) {
-        setSelectedArmoire(armoire)
-        setSelectedDossier(null)
-        setSearch("")
-      }
-    }
-  }, [searchParams, direction.armoires])
-
   // When armoire changes, reset dossier
   const handleSelectArmoire = (arm: Armoire) => {
     // Armoires are now displayed as cards only
@@ -1063,13 +1051,13 @@ function DirectionDetail({
         </div>
 
         <div className="px-4 py-3 border-b border-border">
-          <p className="text-xs font-semibold text-foreground uppercase tracking-wide">Agences</p>
+          <p className="text-xs font-semibold text-foreground uppercase tracking-wide">Agences de {direction.name}</p>
         </div>
 
         <div className="flex-1 overflow-y-auto py-2">
           {(direction.agences ?? []).length === 0 ? (
             <div className="flex flex-col items-center mt-8 px-4 gap-3">
-              <MapPin className="h-6 w-6 text-muted-foreground/40" />
+              <Store className="h-6 w-6 text-muted-foreground/40" />
               <p className="text-xs text-muted-foreground text-center">Aucune agence</p>
               <Button
                 variant="outline"
@@ -1091,7 +1079,7 @@ function DirectionDetail({
                     selectedAgence?.id === agence.id ? "bg-muted" : ""
                   )}
                 >
-                  <MapPin className="h-4 w-4 flex-shrink-0 text-muted-foreground mt-0.5" />
+                  <Store className="h-4 w-4 flex-shrink-0 text-muted-foreground mt-0.5" />
                   <div className="flex-1 min-w-0">
                     <p className="text-sm font-medium text-foreground truncate">{agence.name}</p>
                     <p className="text-[10px] text-muted-foreground truncate">
@@ -1505,7 +1493,7 @@ export function DirectionView() {
 
   useEffect(() => {
     setDirections(store.getDirections())
-    return store.subscribe(() => {
+    const unsubscribe = store.subscribe(() => {
       setDirections(store.getDirections())
       // Refresh openDirection if it changed
       if (openDirection) {
@@ -1513,6 +1501,7 @@ export function DirectionView() {
         if (updated) setOpenDirection(updated)
       }
     })
+    return unsubscribe
   }, [openDirection])
 
   // Handle query parameters to auto-open direction
