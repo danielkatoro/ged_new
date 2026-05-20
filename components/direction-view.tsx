@@ -438,6 +438,277 @@ function DossierPanel({
 
 // ─── Import Files Panel ───────────────────────────────────────────────────────
 
+// ─── Camera Scanner Modal ─────────────────────────────────────────────────────
+
+function CameraScannerModal({
+  open,
+  onClose,
+  onCapture,
+}: {
+  open: boolean
+  onClose: () => void
+  onCapture: (file: File) => void
+}) {
+  const videoRef = useRef<HTMLVideoElement>(null)
+  const canvasRef = useRef<HTMLCanvasElement>(null)
+  const [stream, setStream] = useState<MediaStream | null>(null)
+  const [error, setError] = useState<string | null>(null)
+  const [isLoading, setIsLoading] = useState(false)
+  const [capturedImage, setCapturedImage] = useState<string | null>(null)
+  const [facingMode, setFacingMode] = useState<"user" | "environment">("environment")
+
+  const startCamera = useCallback(async () => {
+    setIsLoading(true)
+    setError(null)
+    
+    // Stop any existing stream first
+    if (stream) {
+      stream.getTracks().forEach(track => track.stop())
+    }
+
+    try {
+      const mediaStream = await navigator.mediaDevices.getUserMedia({
+        video: {
+          facingMode: facingMode,
+          width: { ideal: 1920 },
+          height: { ideal: 1080 },
+        },
+        audio: false,
+      })
+      
+      setStream(mediaStream)
+      if (videoRef.current) {
+        videoRef.current.srcObject = mediaStream
+      }
+    } catch (err) {
+      console.error("Camera access error:", err)
+      if (err instanceof Error) {
+        if (err.name === "NotAllowedError") {
+          setError("Acces a la camera refuse. Veuillez autoriser l'acces dans les parametres de votre navigateur.")
+        } else if (err.name === "NotFoundError") {
+          setError("Aucune camera detectee sur cet appareil.")
+        } else {
+          setError("Impossible d'acceder a la camera. Verifiez vos parametres.")
+        }
+      }
+    } finally {
+      setIsLoading(false)
+    }
+  }, [facingMode, stream])
+
+  const stopCamera = useCallback(() => {
+    if (stream) {
+      stream.getTracks().forEach(track => track.stop())
+      setStream(null)
+    }
+    if (videoRef.current) {
+      videoRef.current.srcObject = null
+    }
+  }, [stream])
+
+  useEffect(() => {
+    if (open) {
+      startCamera()
+    } else {
+      stopCamera()
+      setCapturedImage(null)
+      setError(null)
+    }
+    
+    return () => {
+      stopCamera()
+    }
+  }, [open])
+
+  // Restart camera when facing mode changes
+  useEffect(() => {
+    if (open && !capturedImage) {
+      startCamera()
+    }
+  }, [facingMode])
+
+  const capturePhoto = () => {
+    if (!videoRef.current || !canvasRef.current) return
+
+    const video = videoRef.current
+    const canvas = canvasRef.current
+    const context = canvas.getContext("2d")
+
+    if (!context) return
+
+    // Set canvas dimensions to match video
+    canvas.width = video.videoWidth
+    canvas.height = video.videoHeight
+
+    // Draw the video frame to the canvas
+    context.drawImage(video, 0, 0, canvas.width, canvas.height)
+
+    // Get the image as data URL
+    const imageDataUrl = canvas.toDataURL("image/jpeg", 0.92)
+    setCapturedImage(imageDataUrl)
+    
+    // Stop the camera after capture
+    stopCamera()
+  }
+
+  const retakePhoto = () => {
+    setCapturedImage(null)
+    startCamera()
+  }
+
+  const confirmCapture = () => {
+    if (!capturedImage || !canvasRef.current) return
+
+    canvasRef.current.toBlob((blob) => {
+      if (blob) {
+        const timestamp = new Date().toISOString().replace(/[:.]/g, "-")
+        const file = new File([blob], `scan-${timestamp}.jpg`, { type: "image/jpeg" })
+        onCapture(file)
+        onClose()
+      }
+    }, "image/jpeg", 0.92)
+  }
+
+  const toggleCamera = () => {
+    setFacingMode(prev => prev === "user" ? "environment" : "user")
+  }
+
+  if (!open) return null
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center">
+      {/* Backdrop */}
+      <div className="absolute inset-0 bg-black/80" onClick={onClose} />
+      
+      {/* Modal */}
+      <div className="relative bg-card rounded-xl overflow-hidden shadow-2xl w-full max-w-2xl mx-4">
+        {/* Header */}
+        <div className="flex items-center justify-between px-4 py-3 border-b border-border bg-card">
+          <div className="flex items-center gap-2">
+            <div className="h-8 w-8 rounded-full bg-primary/10 flex items-center justify-center">
+              <Camera className="h-4 w-4 text-primary" />
+            </div>
+            <h3 className="text-sm font-semibold text-foreground">Scanner un document</h3>
+          </div>
+          <Button variant="ghost" size="icon" className="h-8 w-8" onClick={onClose}>
+            <X className="h-4 w-4" />
+          </Button>
+        </div>
+
+        {/* Camera View */}
+        <div className="relative aspect-[4/3] bg-black">
+          {isLoading && (
+            <div className="absolute inset-0 flex items-center justify-center bg-black">
+              <div className="text-center">
+                <div className="h-10 w-10 border-2 border-primary border-t-transparent rounded-full animate-spin mx-auto mb-3" />
+                <p className="text-sm text-white/70">Initialisation de la camera...</p>
+              </div>
+            </div>
+          )}
+
+          {error && (
+            <div className="absolute inset-0 flex items-center justify-center bg-black p-8">
+              <div className="text-center">
+                <div className="h-16 w-16 rounded-full bg-destructive/20 flex items-center justify-center mx-auto mb-4">
+                  <Camera className="h-8 w-8 text-destructive" />
+                </div>
+                <p className="text-sm text-white/90 mb-4">{error}</p>
+                <Button variant="outline" onClick={startCamera} className="gap-2">
+                  <RotateCcw className="h-4 w-4" />
+                  Reessayer
+                </Button>
+              </div>
+            </div>
+          )}
+
+          {capturedImage ? (
+            <img 
+              src={capturedImage} 
+              alt="Captured" 
+              className="w-full h-full object-contain"
+            />
+          ) : (
+            <video
+              ref={videoRef}
+              autoPlay
+              playsInline
+              muted
+              className={cn(
+                "w-full h-full object-cover",
+                (isLoading || error) && "invisible"
+              )}
+            />
+          )}
+
+          {/* Scan frame overlay */}
+          {!capturedImage && !error && !isLoading && (
+            <div className="absolute inset-0 pointer-events-none">
+              <div className="absolute inset-8 border-2 border-white/30 rounded-lg">
+                <div className="absolute -top-0.5 -left-0.5 w-8 h-8 border-t-2 border-l-2 border-white rounded-tl-lg" />
+                <div className="absolute -top-0.5 -right-0.5 w-8 h-8 border-t-2 border-r-2 border-white rounded-tr-lg" />
+                <div className="absolute -bottom-0.5 -left-0.5 w-8 h-8 border-b-2 border-l-2 border-white rounded-bl-lg" />
+                <div className="absolute -bottom-0.5 -right-0.5 w-8 h-8 border-b-2 border-r-2 border-white rounded-br-lg" />
+              </div>
+              <p className="absolute bottom-4 left-1/2 -translate-x-1/2 text-xs text-white/70 bg-black/50 px-3 py-1 rounded-full">
+                Positionnez le document dans le cadre
+              </p>
+            </div>
+          )}
+
+          {/* Hidden canvas for capture */}
+          <canvas ref={canvasRef} className="hidden" />
+        </div>
+
+        {/* Controls */}
+        <div className="flex items-center justify-center gap-4 p-4 bg-card border-t border-border">
+          {capturedImage ? (
+            <>
+              <Button variant="outline" onClick={retakePhoto} className="gap-2">
+                <RotateCcw className="h-4 w-4" />
+                Reprendre
+              </Button>
+              <Button onClick={confirmCapture} className="gap-2">
+                <Check className="h-4 w-4" />
+                Utiliser cette photo
+              </Button>
+            </>
+          ) : (
+            <>
+              <Button
+                variant="outline"
+                size="icon"
+                className="h-10 w-10 rounded-full"
+                onClick={toggleCamera}
+                disabled={isLoading || !!error}
+              >
+                <RotateCcw className="h-4 w-4" />
+              </Button>
+              <Button
+                size="icon"
+                className="h-14 w-14 rounded-full bg-white hover:bg-white/90 text-black"
+                onClick={capturePhoto}
+                disabled={isLoading || !!error}
+              >
+                <Camera className="h-6 w-6" />
+              </Button>
+              <Button
+                variant="outline"
+                size="icon"
+                className="h-10 w-10 rounded-full"
+                onClick={onClose}
+              >
+                <X className="h-4 w-4" />
+              </Button>
+            </>
+          )}
+        </div>
+      </div>
+    </div>
+  )
+}
+
+// ─── Import Files Panel ───────────────────────────────────────────────────────
+
 function ImportFilesPanel({
   open,
   onClose,
@@ -451,7 +722,7 @@ function ImportFilesPanel({
   const [isDragging, setIsDragging] = useState(false)
   const [files, setFiles] = useState<PendingFile[]>([])
   const fileInputRef = useRef<HTMLInputElement>(null)
-  const scanInputRef = useRef<HTMLInputElement>(null)
+  const [scannerOpen, setScannerOpen] = useState(false)
 
   useEffect(() => {
     if (open) setFiles([])
@@ -481,15 +752,8 @@ function ImportFilesPanel({
     }
   }
 
-  const handleScanClick = () => {
-    scanInputRef.current?.click()
-  }
-
-  const handleScanFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const selectedFiles = e.target.files
-    if (selectedFiles) {
-      setFiles(prev => [...prev, ...Array.from(selectedFiles).map(file => ({ file, source: "scan" }))])
-    }
+  const handleScanCapture = (file: File) => {
+    setFiles(prev => [...prev, { file, source: "scan" }])
   }
 
   const handleImport = () => {
@@ -552,14 +816,6 @@ function ImportFilesPanel({
               className="hidden"
               onChange={handleFileChange}
             />
-            <input
-              ref={scanInputRef}
-              type="file"
-              accept="image/*"
-              capture="environment"
-              className="hidden"
-              onChange={handleScanFileChange}
-            />
           </div>
 
           <div className="flex flex-wrap items-center gap-2 mt-3">
@@ -576,9 +832,9 @@ function ImportFilesPanel({
               variant="outline"
               size="sm"
               className="h-9 gap-2"
-              onClick={handleScanClick}
+              onClick={() => setScannerOpen(true)}
             >
-              <Upload className="h-4 w-4" />
+              <Camera className="h-4 w-4" />
               Scanner un document
             </Button>
           </div>
@@ -590,10 +846,19 @@ function ImportFilesPanel({
               <div className="space-y-1 max-h-64 overflow-y-auto">
                 {files.map((pending, index) => (
                   <div key={index} className="flex items-center gap-2 p-2 rounded bg-muted/50">
-                    <FileText className="h-4 w-4 text-muted-foreground shrink-0" />
+                    {pending.source === "scan" ? (
+                      <Camera className="h-4 w-4 text-primary shrink-0" />
+                    ) : (
+                      <FileText className="h-4 w-4 text-muted-foreground shrink-0" />
+                    )}
                     <span className="text-sm text-foreground flex-1 truncate">{pending.file.name}</span>
                     <span className="text-xs text-muted-foreground">{(pending.file.size / 1024).toFixed(0)} KB</span>
-                    <span className="text-xs text-muted-foreground uppercase">{pending.source}</span>
+                    <span className={cn(
+                      "text-xs uppercase px-1.5 py-0.5 rounded",
+                      pending.source === "scan" ? "bg-primary/10 text-primary" : "text-muted-foreground"
+                    )}>
+                      {pending.source}
+                    </span>
                     <Button
                       variant="ghost"
                       size="icon"
@@ -618,6 +883,13 @@ function ImportFilesPanel({
           </Button>
         </div>
       </div>
+
+      {/* Camera Scanner Modal */}
+      <CameraScannerModal
+        open={scannerOpen}
+        onClose={() => setScannerOpen(false)}
+        onCapture={handleScanCapture}
+      />
     </>
   )
 }
