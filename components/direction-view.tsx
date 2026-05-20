@@ -859,9 +859,613 @@ function DirectionGrid({
   )
 }
 
+// ─── Direction Overview (new layout matching the design) ──────────────────────
+
+function DirectionOverview({
+  direction,
+  onBack,
+  onAddAgence,
+  onAddArmoire,
+  onOpenArmoire,
+  onEditDirection,
+}: {
+  direction: Direction
+  onBack: () => void
+  onAddAgence: (dirId: string, data: { name: string; location?: string; description?: string }) => void
+  onAddArmoire: (dirId: string, agenceId: string | null, data: { name: string; icon: string; admins: string[] }) => void
+  onOpenArmoire: (agence: Agence, armoire: Armoire) => void
+  onEditDirection: (dir: Direction, data: { name: string; description: string; directeur: string }) => void
+}) {
+  const [agencePanelOpen, setAgencePanelOpen] = useState(false)
+  const [armoirePanelTarget, setArmoirePanelTarget] = useState<Agence | null>(null)
+  const [editingResponsable, setEditingResponsable] = useState(false)
+  const [responsable, setResponsable] = useState(direction.description?.split("Responsable: ")[1] || "Non defini")
+  const [importPanelOpen, setImportPanelOpen] = useState(false)
+
+  // Calculate stats
+  const totalDocs = direction.agences.reduce((sum, ag) =>
+    sum + ag.armoires.reduce((a, arm) => a + arm.dossiers.reduce((b, dos) => b + dos.files.length, 0), 0), 0
+  ) + direction.armoires.reduce((a, arm) => a + arm.dossiers.reduce((b, dos) => b + dos.files.length, 0), 0)
+
+  const totalAgences = direction.agences.length || (direction.armoires.length > 0 ? 1 : 0)
+
+  const pendingDocs = direction.agences.reduce((sum, ag) =>
+    sum + ag.armoires.reduce((a, arm) => a + arm.dossiers.reduce((b, dos) => b + dos.files.filter(f => f.status === "En validation").length, 0), 0), 0
+  ) + direction.armoires.reduce((a, arm) => a + arm.dossiers.reduce((b, dos) => b + dos.files.filter(f => f.status === "En validation").length, 0), 0)
+
+  // Get all agences (or create a default one if only armoires exist)
+  const agences: Agence[] = direction.agences.length > 0
+    ? direction.agences
+    : direction.armoires.length > 0
+      ? [{
+          id: `ag-${direction.id}-default`,
+          name: "Agence Principale",
+          location: "Siege",
+          description: "Agence principale",
+          armoires: direction.armoires,
+        }]
+      : []
+
+  const countAgenceDocs = (agence: Agence) => {
+    return agence.armoires.reduce((a, arm) => a + arm.dossiers.reduce((b, dos) => b + dos.files.length, 0), 0)
+  }
+
+  const countArmoireDocs = (armoire: Armoire) => {
+    return armoire.dossiers.reduce((sum, dos) => sum + dos.files.length, 0)
+  }
+
+  const handleSaveResponsable = () => {
+    onEditDirection(direction, {
+      name: direction.name,
+      description: `Responsable: ${responsable}`,
+      directeur: responsable
+    })
+    setEditingResponsable(false)
+  }
+
+  return (
+    <div className="flex-1 overflow-y-auto bg-background">
+      <div className="p-6 space-y-6">
+        {/* Header section */}
+        <div className="flex items-start justify-between gap-4">
+          <div className="flex items-center gap-4">
+            <div className="h-14 w-14 rounded-lg bg-muted flex items-center justify-center flex-shrink-0">
+              <Building2 className="h-7 w-7 text-foreground" />
+            </div>
+            <div>
+              <h1 className="text-xl font-semibold text-foreground">{direction.name}</h1>
+              <div className="flex items-center gap-2 mt-1">
+                {editingResponsable ? (
+                  <div className="flex items-center gap-2">
+                    <Input
+                      value={responsable}
+                      onChange={e => setResponsable(e.target.value)}
+                      className="h-7 text-sm w-48"
+                      autoFocus
+                      onKeyDown={e => e.key === "Enter" && handleSaveResponsable()}
+                    />
+                    <Button size="sm" className="h-7 text-xs" onClick={handleSaveResponsable}>
+                      <Check className="h-3 w-3" />
+                    </Button>
+                    <Button size="sm" variant="ghost" className="h-7 text-xs" onClick={() => setEditingResponsable(false)}>
+                      <X className="h-3 w-3" />
+                    </Button>
+                  </div>
+                ) : (
+                  <button
+                    className="text-sm text-muted-foreground hover:text-foreground transition-colors flex items-center gap-1.5"
+                    onClick={() => setEditingResponsable(true)}
+                  >
+                    Responsable : {responsable}
+                    <Pencil className="h-3 w-3 opacity-50" />
+                  </button>
+                )}
+              </div>
+            </div>
+          </div>
+          <Button className="h-9 gap-2 text-sm" onClick={() => setImportPanelOpen(true)}>
+            <Plus className="h-4 w-4" />
+            Ajouter un document
+          </Button>
+        </div>
+
+        {/* KPI Cards */}
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+          <div className="bg-card border border-border rounded-lg p-4">
+            <div className="flex items-center justify-center mb-2">
+              <FileText className="h-5 w-5 text-muted-foreground" />
+            </div>
+            <p className="text-2xl font-semibold text-center text-foreground">{totalDocs}</p>
+            <p className="text-xs text-muted-foreground text-center">Documents</p>
+          </div>
+          <div className="bg-card border border-border rounded-lg p-4">
+            <div className="flex items-center justify-center mb-2">
+              <Users className="h-5 w-5 text-muted-foreground" />
+            </div>
+            <p className="text-2xl font-semibold text-center text-foreground">{direction.members}</p>
+            <p className="text-xs text-muted-foreground text-center">Membres</p>
+          </div>
+          <div className="bg-card border border-border rounded-lg p-4">
+            <div className="flex items-center justify-center mb-2">
+              <Building2 className="h-5 w-5 text-muted-foreground" />
+            </div>
+            <p className="text-2xl font-semibold text-center text-foreground">{totalAgences}</p>
+            <p className="text-xs text-muted-foreground text-center">Agences</p>
+          </div>
+          <div className="bg-card border border-border rounded-lg p-4">
+            <div className="flex items-center justify-center mb-2">
+              <FileText className="h-5 w-5 text-muted-foreground" />
+            </div>
+            <p className={cn("text-2xl font-semibold text-center", pendingDocs > 0 ? "text-orange-500" : "text-foreground")}>{pendingDocs}</p>
+            <p className={cn("text-xs text-center", pendingDocs > 0 ? "text-orange-500" : "text-muted-foreground")}>En validation</p>
+          </div>
+        </div>
+
+        {/* Agences Section */}
+        <div className="bg-card border border-border rounded-lg">
+          <div className="flex items-center justify-between px-5 py-4 border-b border-border">
+            <div className="flex items-center gap-2">
+              <h2 className="text-sm font-semibold text-foreground">Agences</h2>
+              <span className="text-xs text-muted-foreground bg-muted px-2 py-0.5 rounded-full">{totalAgences}</span>
+            </div>
+            <Button variant="ghost" size="sm" className="h-8 gap-1.5 text-xs" onClick={() => setAgencePanelOpen(true)}>
+              <Plus className="h-3.5 w-3.5" />
+              Ajouter une agence
+            </Button>
+          </div>
+
+          <div className="p-5">
+            {agences.length === 0 ? (
+              <div className="text-center py-8">
+                <Building2 className="h-10 w-10 mx-auto text-muted-foreground/30 mb-3" />
+                <p className="text-sm text-muted-foreground mb-4">Aucune agence dans cette direction</p>
+                <Button onClick={() => setAgencePanelOpen(true)}>
+                  <Plus className="h-4 w-4 mr-2" />
+                  Ajouter une agence
+                </Button>
+              </div>
+            ) : (
+              <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
+                {agences.map(agence => (
+                  <div key={agence.id} className="border border-border rounded-lg overflow-hidden bg-background">
+                    {/* Agency Header */}
+                    <div className="flex items-center justify-between p-4 border-b border-border bg-muted/30">
+                      <div className="flex items-center gap-3 min-w-0">
+                        <div className="h-10 w-10 rounded bg-muted flex items-center justify-center flex-shrink-0">
+                          <Building2 className="h-5 w-5 text-foreground" />
+                        </div>
+                        <div className="min-w-0">
+                          <p className="text-sm font-medium text-foreground truncate">{agence.name}</p>
+                          {agence.location && (
+                            <p className="text-xs text-muted-foreground truncate flex items-center gap-1">
+                              <span className="inline-block w-1 h-1 rounded-full bg-muted-foreground" />
+                              {agence.location}
+                            </p>
+                          )}
+                        </div>
+                      </div>
+                      <div className="text-right flex-shrink-0">
+                        <p className="text-sm font-semibold text-foreground">{countAgenceDocs(agence)}</p>
+                        <p className="text-[10px] text-muted-foreground">documents</p>
+                      </div>
+                    </div>
+
+                    {/* Armoires list */}
+                    <div className="p-3 space-y-1">
+                      {agence.armoires.map(armoire => {
+                        const IconComp = getIconComponent(armoire.icon || "archive")
+                        return (
+                          <button
+                            key={armoire.id}
+                            onClick={() => onOpenArmoire(agence, armoire)}
+                            className="w-full flex items-center justify-between gap-3 px-3 py-2 rounded hover:bg-muted/50 transition-colors text-left group"
+                          >
+                            <div className="flex items-center gap-2 min-w-0">
+                              <IconComp className="h-4 w-4 text-muted-foreground flex-shrink-0" />
+                              <span className="text-sm text-foreground truncate">{armoire.name}</span>
+                            </div>
+                            <span className="text-xs text-muted-foreground flex-shrink-0">{countArmoireDocs(armoire)} docs</span>
+                          </button>
+                        )
+                      })}
+
+                      {/* Add armoire button */}
+                      <button
+                        onClick={() => setArmoirePanelTarget(agence)}
+                        className="w-full flex items-center justify-center gap-1.5 px-3 py-2 rounded border border-dashed border-border text-xs text-muted-foreground hover:text-foreground hover:border-foreground/30 transition-colors mt-2"
+                      >
+                        <Plus className="h-3.5 w-3.5" />
+                        Ajouter une armoire
+                      </button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        </div>
+      </div>
+
+      {/* Panels */}
+      <AgencePanel
+        open={agencePanelOpen}
+        onClose={() => setAgencePanelOpen(false)}
+        onSave={data => onAddAgence(direction.id, data)}
+      />
+      <ArmoirePanel
+        open={!!armoirePanelTarget}
+        onClose={() => setArmoirePanelTarget(null)}
+        onSave={data => {
+          if (armoirePanelTarget) {
+            const realAgenceId = armoirePanelTarget.id.startsWith('ag-') && armoirePanelTarget.id.includes('-default')
+              ? null
+              : armoirePanelTarget.id
+            onAddArmoire(direction.id, realAgenceId, data)
+            setArmoirePanelTarget(null)
+          }
+        }}
+      />
+      <ImportFilesPanel
+        open={importPanelOpen}
+        onClose={() => setImportPanelOpen(false)}
+        onImport={() => {}}
+      />
+    </div>
+  )
+}
+
 // ─── Armoire + Dossier + Files view ──────────────────────────────────────────
 
 function DirectionDetail({
+  direction,
+  selectedAgence: initialAgence,
+  selectedArmoire: initialArmoire,
+  onBack,
+  onBackToOverview,
+  onAddDossier,
+}: {
+  direction: Direction
+  selectedAgence: Agence
+  selectedArmoire: Armoire
+  onBack: () => void
+  onBackToOverview: () => void
+  onAddDossier: (dirId: string, armoireId: string, name: string) => void
+}) {
+  const searchParams = useSearchParams()
+  const [selectedArmoire, setSelectedArmoire] = useState<Armoire>(initialArmoire)
+  const [selectedAgence, setSelectedAgence] = useState<Agence>(initialAgence)
+  const [selectedDossier, setSelectedDossier] = useState<Dossier | null>(null)
+  const [selectedFile, setSelectedFile] = useState<DocFile | null>(null)
+  const [search, setSearch] = useState("")
+  const [view, setView] = useState<"list" | "grid">("list")
+  const [dossierPanelOpen, setDossierPanelOpen] = useState(false)
+  const [importPanelOpen, setImportPanelOpen] = useState(false)
+  const [selectedFiles, setSelectedFiles] = useState<Set<string>>(new Set())
+
+  // Sync armoire with direction changes
+  useEffect(() => {
+    const agence = direction.agences.find(ag => ag.id === selectedAgence.id) ||
+      (direction.armoires.length > 0 ? {
+        id: `ag-${direction.id}-default`,
+        name: "Agence Principale",
+        location: "Siege",
+        description: "Agence principale",
+        armoires: direction.armoires,
+      } : null)
+
+    if (agence) {
+      setSelectedAgence(agence)
+      const armoire = agence.armoires.find(a => a.id === selectedArmoire.id)
+      if (armoire) {
+        setSelectedArmoire(armoire)
+        if (selectedDossier) {
+          const dossier = armoire.dossiers.find(d => d.id === selectedDossier.id)
+          setSelectedDossier(dossier || null)
+        }
+      }
+    }
+  }, [direction])
+
+  const handleImportFiles = (pendingFiles: { file: File; source: "upload" | "scan" }[]) => {
+    if (!selectedArmoire) return
+
+    let targetDossier = selectedDossier
+    if (!targetDossier) {
+      targetDossier = store.addDossier(direction.id, selectedArmoire.id, "Documents importes")
+      setSelectedDossier(targetDossier)
+    }
+
+    store.addDocuments(
+      direction.id,
+      selectedArmoire.id,
+      targetDossier.id,
+      pendingFiles
+    )
+  }
+
+  const toggleFileSelection = (fileId: string) => {
+    setSelectedFiles(prev => {
+      const next = new Set(prev)
+      if (next.has(fileId)) {
+        next.delete(fileId)
+      } else {
+        next.add(fileId)
+      }
+      return next
+    })
+  }
+
+  const selectAllFiles = () => {
+    if (!selectedDossier) return
+    if (selectedFiles.size === selectedDossier.files.length) {
+      setSelectedFiles(new Set())
+    } else {
+      setSelectedFiles(new Set(selectedDossier.files.map(f => f.id)))
+    }
+  }
+
+  // Breadcrumb
+  const breadcrumb = [
+    { label: "Directions", onClick: onBack },
+    { label: direction.name, onClick: onBackToOverview },
+    { label: selectedAgence.name, onClick: onBackToOverview },
+    { label: selectedArmoire.name, onClick: () => setSelectedDossier(null) },
+    ...(selectedDossier ? [{ label: selectedDossier.name, onClick: () => {} }] : []),
+  ]
+
+  return (
+    <div className="flex-1 flex flex-col min-w-0 bg-background">
+      {/* Sub-header */}
+      <div className="flex items-center justify-between px-5 py-3 border-b border-border bg-card gap-4">
+        {/* Breadcrumb */}
+        <nav className="flex items-center gap-1 text-sm min-w-0">
+          {breadcrumb.map((crumb, i) => (
+            <span key={i} className="flex items-center gap-1">
+              {i > 0 && <ChevronRight className="h-3.5 w-3.5 text-muted-foreground flex-shrink-0" />}
+              <button
+                onClick={crumb.onClick}
+                className={cn(
+                  "truncate transition-colors",
+                  i === breadcrumb.length - 1
+                    ? "font-semibold text-foreground"
+                    : "text-muted-foreground hover:text-foreground"
+                )}
+              >
+                {crumb.label}
+              </button>
+            </span>
+          ))}
+        </nav>
+
+        {/* Actions */}
+        {!selectedDossier && (
+          <div className="flex items-center gap-2 flex-shrink-0">
+            <div className="relative">
+              <Search className="absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" />
+              <Input
+                placeholder="Rechercher..."
+                value={search}
+                onChange={e => setSearch(e.target.value)}
+                className="pl-8 h-8 w-44 text-xs bg-muted/50 border-0 rounded"
+              />
+            </div>
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button className="h-8 gap-1.5 text-xs rounded">
+                  <Plus className="h-3.5 w-3.5" />
+                  Nouveau
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end">
+                <DropdownMenuItem onClick={() => setDossierPanelOpen(true)}>
+                  <FolderPlus className="h-4 w-4 mr-2" />
+                  Nouveau Dossier
+                </DropdownMenuItem>
+                <DropdownMenuItem onClick={() => setImportPanelOpen(true)}>
+                  <FolderUp className="h-4 w-4 mr-2" />
+                  Importer un dossier
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
+          </div>
+        )}
+
+        {selectedDossier && (
+          <div className="flex items-center gap-2 flex-shrink-0">
+            {selectedFiles.size > 0 && (
+              <div className="flex items-center gap-2 mr-2">
+                <span className="text-xs text-muted-foreground">{selectedFiles.size} selectionne(s)</span>
+                <Button variant="outline" size="sm" className="h-7 text-xs gap-1">
+                  <Download className="h-3 w-3" />
+                  Telecharger
+                </Button>
+                <Button variant="outline" size="sm" className="h-7 text-xs gap-1 text-destructive hover:text-destructive">
+                  <Trash2 className="h-3 w-3" />
+                  Supprimer
+                </Button>
+              </div>
+            )}
+            <div className="relative">
+              <Search className="absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" />
+              <Input
+                placeholder="Rechercher..."
+                value={search}
+                onChange={e => setSearch(e.target.value)}
+                className="pl-8 h-8 w-44 text-xs bg-muted/50 border-0 rounded"
+              />
+            </div>
+            <div className="flex border border-border rounded overflow-hidden">
+              <Button
+                variant="ghost"
+                size="icon"
+                className={cn("h-8 w-8 rounded-none", view === "list" && "bg-muted")}
+                onClick={() => setView("list")}
+              >
+                <List className="h-3.5 w-3.5" />
+              </Button>
+              <Button
+                variant="ghost"
+                size="icon"
+                className={cn("h-8 w-8 rounded-none", view === "grid" && "bg-muted")}
+                onClick={() => setView("grid")}
+              >
+                <LayoutGrid className="h-3.5 w-3.5" />
+              </Button>
+            </div>
+            <Button className="h-8 gap-1.5 text-xs rounded" onClick={() => setImportPanelOpen(true)}>
+              <FilePlus className="h-3.5 w-3.5" />
+              Importer
+            </Button>
+          </div>
+        )}
+      </div>
+
+      {/* Content */}
+      <div className="flex-1 overflow-y-auto p-5">
+        {!selectedDossier ? (
+          <DossierList
+            armoire={selectedArmoire}
+            search={search}
+            onOpen={setSelectedDossier}
+          />
+        ) : (
+          <FileList
+            dossier={selectedDossier}
+            search={search}
+            view={view}
+            onFileOpen={setSelectedFile}
+            selectedFiles={selectedFiles}
+            onToggleSelect={toggleFileSelection}
+            onSelectAll={selectAllFiles}
+          />
+        )}
+      </div>
+
+      {/* Slide panels */}
+      <DossierPanel
+        open={dossierPanelOpen}
+        onClose={() => setDossierPanelOpen(false)}
+        onSave={name => onAddDossier(direction.id, selectedArmoire.id, name)}
+      />
+      <ImportFilesPanel
+        open={importPanelOpen}
+        onClose={() => setImportPanelOpen(false)}
+        onImport={handleImportFiles}
+      />
+
+      {selectedFile && selectedDossier && (
+        <DocumentDetailPanel
+          file={selectedFile}
+          context={{
+            direction: direction.name,
+            armoire: selectedArmoire.name,
+            dossier: selectedDossier.name,
+          }}
+          onClose={() => setSelectedFile(null)}
+        />
+      )}
+    </div>
+  )
+}
+
+// ─── Direction List Sidebar (left panel) ──────────────────────────────────────
+
+function DirectionListSidebar({
+  directions,
+  selectedDirection,
+  onSelectDirection,
+  onCreateDirection,
+}: {
+  directions: Direction[]
+  selectedDirection: Direction | null
+  onSelectDirection: (d: Direction) => void
+  onCreateDirection: () => void
+}) {
+  const [search, setSearch] = useState("")
+
+  const filtered = directions.filter(d =>
+    d.name.toLowerCase().includes(search.toLowerCase())
+  )
+
+  const countDirDocs = (dir: Direction) => {
+    const agenceDocs = dir.agences.reduce((sum, ag) =>
+      sum + ag.armoires.reduce((a, arm) => a + arm.dossiers.reduce((b, dos) => b + dos.files.length, 0), 0), 0)
+    const directDocs = dir.armoires.reduce((a, arm) => a + arm.dossiers.reduce((b, dos) => b + dos.files.length, 0), 0)
+    return agenceDocs + directDocs
+  }
+
+  const countDirAgences = (dir: Direction) => {
+    return dir.agences.length || (dir.armoires.length > 0 ? 1 : 0)
+  }
+
+  return (
+    <div className="w-72 border-r border-border flex flex-col flex-shrink-0 bg-card">
+      <div className="flex items-center justify-between px-4 py-3 border-b border-border">
+        <h2 className="text-sm font-semibold text-foreground">Directions</h2>
+        <Button variant="ghost" size="icon" className="h-7 w-7" onClick={onCreateDirection}>
+          <Plus className="h-4 w-4" />
+        </Button>
+      </div>
+
+      <div className="px-4 py-3 border-b border-border">
+        <div className="relative">
+          <Search className="absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" />
+          <Input
+            placeholder="Rechercher..."
+            value={search}
+            onChange={e => setSearch(e.target.value)}
+            className="pl-8 h-9 text-sm bg-muted/50 border-0 rounded"
+          />
+        </div>
+      </div>
+
+      <div className="flex-1 overflow-y-auto p-2">
+        {filtered.map(dir => {
+          const isActive = selectedDirection?.id === dir.id
+          const docCount = countDirDocs(dir)
+          const agenceCount = countDirAgences(dir)
+
+          return (
+            <button
+              key={dir.id}
+              onClick={() => onSelectDirection(dir)}
+              className={cn(
+                "w-full flex items-center gap-3 rounded-lg px-3 py-3 mb-1 text-left transition-colors",
+                isActive
+                  ? "bg-foreground text-background"
+                  : "hover:bg-muted"
+              )}
+            >
+              <div className={cn(
+                "h-9 w-9 rounded flex items-center justify-center flex-shrink-0",
+                isActive ? "bg-background/20" : "bg-muted"
+              )}>
+                <Building2 className="h-4 w-4" />
+              </div>
+              <div className="flex-1 min-w-0">
+                <p className="text-sm font-medium truncate">{dir.name}</p>
+                <p className={cn(
+                  "text-xs",
+                  isActive ? "text-background/70" : "text-muted-foreground"
+                )}>
+                  {docCount} docs - {agenceCount} {agenceCount <= 1 ? "agence" : "agences"}
+                </p>
+              </div>
+              <ChevronRight className={cn(
+                "h-4 w-4 flex-shrink-0",
+                isActive ? "text-background/70" : "text-muted-foreground"
+              )} />
+            </button>
+          )
+        })}
+      </div>
+    </div>
+  )
+}
+
+// ─── Old DirectionDetail for backward compat ────────────────────────────────────
+
+function OldDirectionDetail({
   direction,
   onBack,
   onAddAgence,
@@ -945,7 +1549,7 @@ function DirectionDetail({
   // Auto-select armoire from query params
   useEffect(() => {
     const armoireParam = searchParams.get('armoire')
-    if (armoireParam && selectedAgence?.armoires.length > 0) {
+    if (armoireParam && selectedAgence?.armoires.length) {
       const armoire = selectedAgence.armoires.find(a => a.name.toLowerCase().includes(armoireParam.toLowerCase()))
       if (armoire) {
         setSelectedArmoire(armoire)
@@ -976,7 +1580,7 @@ function DirectionDetail({
 
     let targetDossier = selectedDossier
     if (!targetDossier) {
-      targetDossier = store.addDossier(direction.id, selectedArmoire.id, "Documents importés")
+      targetDossier = store.addDossier(direction.id, selectedArmoire.id, "Documents importes")
       setSelectedDossier(targetDossier)
     }
 
@@ -1522,50 +2126,88 @@ function FileList({
 
 // ─── Root export ──────────────────────────────────────────────────────────────
 
+type ViewState =
+  | { type: "overview"; direction: Direction }
+  | { type: "armoire"; direction: Direction; agence: Agence; armoire: Armoire }
+
 export function DirectionView() {
   const searchParams = useSearchParams()
   const [directions, setDirections] = useState<Direction[]>([])
-  const [openDirection, setOpenDirection] = useState<Direction | null>(null)
+  const [selectedDirection, setSelectedDirection] = useState<Direction | null>(null)
+  const [viewState, setViewState] = useState<ViewState | null>(null)
+  const [createPanelOpen, setCreatePanelOpen] = useState(false)
 
   useEffect(() => {
     setDirections(store.getDirections())
     return store.subscribe(() => {
-      setDirections(store.getDirections())
-      // Refresh openDirection if it changed
-      if (openDirection) {
-        const updated = store.getDirections().find(d => d.id === openDirection.id)
-        if (updated) setOpenDirection(updated)
+      const dirs = store.getDirections()
+      setDirections(dirs)
+      // Refresh selected direction if it changed
+      if (selectedDirection) {
+        const updated = dirs.find(d => d.id === selectedDirection.id)
+        if (updated) {
+          setSelectedDirection(updated)
+          // Also refresh view state
+          if (viewState) {
+            if (viewState.type === "overview") {
+              setViewState({ type: "overview", direction: updated })
+            } else if (viewState.type === "armoire") {
+              const agence = updated.agences.find(ag => ag.id === viewState.agence.id) ||
+                (updated.armoires.length > 0 ? {
+                  id: `ag-${updated.id}-default`,
+                  name: "Agence Principale",
+                  location: "Siege",
+                  description: "Agence principale",
+                  armoires: updated.armoires,
+                } : null)
+              if (agence) {
+                const armoire = agence.armoires.find(a => a.id === viewState.armoire.id)
+                if (armoire) {
+                  setViewState({ type: "armoire", direction: updated, agence, armoire })
+                }
+              }
+            }
+          }
+        }
       }
     })
-  }, [openDirection])
+  }, [selectedDirection, viewState])
 
   // Handle query parameters to auto-open direction
   useEffect(() => {
     const directionParam = searchParams.get('direction')
     if (directionParam && directions.length > 0) {
       const direction = directions.find(d => d.name.toLowerCase().includes(directionParam.toLowerCase()))
-      if (direction && !openDirection) {
-        setOpenDirection(direction)
+      if (direction && !selectedDirection) {
+        setSelectedDirection(direction)
+        setViewState({ type: "overview", direction })
       }
     }
-  }, [searchParams, directions, openDirection])
+  }, [searchParams, directions, selectedDirection])
+
+  // Auto-select first direction if none selected
+  useEffect(() => {
+    if (directions.length > 0 && !selectedDirection) {
+      setSelectedDirection(directions[0])
+      setViewState({ type: "overview", direction: directions[0] })
+    }
+  }, [directions, selectedDirection])
 
   const handleCreate = (data: { name: string; description: string; directeur: string }) => {
     store.addDirection(data.name)
-    // Update with description if store supports it
     const dirs = store.getDirections()
     const newDir = dirs.find(d => d.name === data.name)
-    if (newDir && data.description) {
-      store.updateDirection(newDir.id, { description: data.description })
+    if (newDir) {
+      if (data.description) {
+        store.updateDirection(newDir.id, { description: data.description })
+      }
+      setSelectedDirection(newDir)
+      setViewState({ type: "overview", direction: newDir })
     }
   }
 
   const handleEdit = (dir: Direction, data: { name: string; description: string; directeur: string }) => {
     store.updateDirection(dir.id, { name: data.name, description: data.description })
-  }
-
-  const handleDelete = (id: string) => {
-    store.deleteDirection(id)
   }
 
   const handleAddAgence = (dirId: string, data: { name: string; location?: string; description?: string }) => {
@@ -1574,33 +2216,82 @@ export function DirectionView() {
 
   const handleAddArmoire = (dirId: string, agenceId: string | null, data: { name: string; icon: string; admins: string[] }) => {
     store.addArmoire(dirId, data.name, agenceId || undefined)
-    // Update icon if store supports it
   }
 
   const handleAddDossier = (dirId: string, armoireId: string, name: string) => {
     store.addDossier(dirId, armoireId, name)
   }
 
-  if (openDirection) {
-    return (
-      <DirectionDetail
-        direction={openDirection}
-        onBack={() => setOpenDirection(null)}
-        onAddAgence={handleAddAgence}
-        onAddArmoire={handleAddArmoire}
-        onAddDossier={handleAddDossier}
-      />
-    )
+  const handleSelectDirection = (dir: Direction) => {
+    setSelectedDirection(dir)
+    setViewState({ type: "overview", direction: dir })
+  }
+
+  const handleOpenArmoire = (agence: Agence, armoire: Armoire) => {
+    if (selectedDirection) {
+      setViewState({ type: "armoire", direction: selectedDirection, agence, armoire })
+    }
+  }
+
+  const handleBackToList = () => {
+    setSelectedDirection(null)
+    setViewState(null)
+  }
+
+  const handleBackToOverview = () => {
+    if (selectedDirection) {
+      setViewState({ type: "overview", direction: selectedDirection })
+    }
   }
 
   return (
-    <DirectionGrid
-      directions={directions}
-      onOpen={setOpenDirection}
-      onCreate={handleCreate}
-      onEdit={handleEdit}
-      onDelete={handleDelete}
-      onCreateAgence={handleAddAgence}
-    />
+    <div className="flex h-[calc(100vh-56px)]">
+      {/* Left sidebar: Directions list */}
+      <DirectionListSidebar
+        directions={directions}
+        selectedDirection={selectedDirection}
+        onSelectDirection={handleSelectDirection}
+        onCreateDirection={() => setCreatePanelOpen(true)}
+      />
+
+      {/* Right content area */}
+      {viewState?.type === "overview" && selectedDirection && (
+        <DirectionOverview
+          direction={selectedDirection}
+          onBack={handleBackToList}
+          onAddAgence={handleAddAgence}
+          onAddArmoire={handleAddArmoire}
+          onOpenArmoire={handleOpenArmoire}
+          onEditDirection={handleEdit}
+        />
+      )}
+
+      {viewState?.type === "armoire" && selectedDirection && (
+        <DirectionDetail
+          direction={selectedDirection}
+          selectedAgence={viewState.agence}
+          selectedArmoire={viewState.armoire}
+          onBack={handleBackToList}
+          onBackToOverview={handleBackToOverview}
+          onAddDossier={handleAddDossier}
+        />
+      )}
+
+      {!viewState && (
+        <div className="flex-1 flex items-center justify-center bg-background">
+          <div className="text-center">
+            <Building2 className="h-12 w-12 mx-auto text-muted-foreground/30 mb-4" />
+            <p className="text-sm text-muted-foreground">Selectionnez une direction</p>
+          </div>
+        </div>
+      )}
+
+      {/* Create direction panel */}
+      <DirectionPanel
+        open={createPanelOpen}
+        onClose={() => setCreatePanelOpen(false)}
+        onSave={handleCreate}
+      />
+    </div>
   )
 }
