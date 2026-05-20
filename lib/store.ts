@@ -42,6 +42,14 @@ export interface Armoire {
   dossiers: Dossier[]
 }
 
+export interface Agence {
+  id: string
+  name: string
+  location?: string
+  description?: string
+  armoires: Armoire[]
+}
+
 export interface Direction {
   id: string
   name: string
@@ -49,6 +57,7 @@ export interface Direction {
   description?: string
   members: number
   access: "Restreint" | "Interne" | "Public"
+  agences: Agence[]
   armoires: Armoire[]
 }
 
@@ -137,6 +146,7 @@ const INITIAL_DIRECTIONS: Direction[] = [
     description: "Direction principale du groupe",
     members: 12,
     access: "Restreint",
+    agences: [],
     armoires: [
       {
         id: "finance",
@@ -402,6 +412,7 @@ const INITIAL_DIRECTIONS: Direction[] = [
     description: "Division technologique",
     members: 8,
     access: "Interne",
+    agences: [],
     armoires: [
       {
         id: "projets-tech",
@@ -424,6 +435,7 @@ const INITIAL_DIRECTIONS: Direction[] = [
     description: "Operations internationales",
     members: 6,
     access: "Restreint",
+    agences: [],
     armoires: [
       {
         id: "ops-yao",
@@ -446,6 +458,7 @@ const INITIAL_DIRECTIONS: Direction[] = [
     description: "Services support et administratifs",
     members: 15,
     access: "Interne",
+    agences: [],
     armoires: [],
   },
   {
@@ -455,6 +468,7 @@ const INITIAL_DIRECTIONS: Direction[] = [
     description: "Logistique et operations",
     members: 10,
     access: "Interne",
+    agences: [],
     armoires: [],
   },
   {
@@ -464,6 +478,7 @@ const INITIAL_DIRECTIONS: Direction[] = [
     description: "Direction RH centrale",
     members: 5,
     access: "Restreint",
+    agences: [],
     armoires: [],
   },
 ]
@@ -592,7 +607,13 @@ class Store {
   private notify() {
     this.listeners.forEach(l => l())
   }
+  private flattenArmoires(direction: Direction) {
+    return direction.agences.flatMap(agence => agence.armoires)
+  }
 
+  private withFlattenedArmoires(direction: Direction) {
+    return { ...direction, armoires: this.flattenArmoires(direction) }
+  }
   // ─── Directions ─────────────────────────────────────────────────────────────
 
   getDirections() { return this.directions }
@@ -604,6 +625,7 @@ class Store {
       date: new Date().toLocaleDateString("fr-FR").replace(/\//g, "-"),
       members: 0,
       access: "Interne",
+      agences: [],
       armoires: [],
     }
     this.directions = [...this.directions, dir]
@@ -626,27 +648,67 @@ class Store {
 
   // ─── Armoires ───────────────────────────────────────────────────────────────
 
-  addArmoire(directionId: string, name: string) {
+  addArmoire(directionId: string, name: string, agenceId?: string) {
     const armoire: Armoire = {
       id: `arm-${Date.now()}`,
       name,
       date: new Date().toLocaleDateString("fr-FR").replace(/\//g, "-"),
       dossiers: [],
     }
-    this.directions = this.directions.map(d =>
-      d.id === directionId ? { ...d, armoires: [...d.armoires, armoire] } : d
-    )
+    this.directions = this.directions.map(d => {
+      if (d.id !== directionId) return d
+      let agences = d.agences
+      if (!agenceId && agences.length === 0) {
+        agences = [
+          {
+            id: `ag-${Date.now()}`,
+            name: "Agence principale",
+            location: "Siege",
+            description: "Agence principale",
+            armoires: [armoire],
+          },
+        ]
+      } else {
+        agences = agences.map(ag =>
+          ag.id === (agenceId ?? agences[0]?.id)
+            ? { ...ag, armoires: [...ag.armoires, armoire] }
+            : ag
+        )
+      }
+      return { ...d, agences, armoires: this.flattenArmoires({ ...d, agences }) }
+    })
     this.addAuditLog("Armoire creee", "C. Boka", name, "armoire")
     this.notify()
     return armoire
   }
 
-  deleteArmoire(directionId: string, armoireId: string) {
+  addAgence(directionId: string, data: { name: string; location?: string; description?: string }) {
+    const agence: Agence = {
+      id: `ag-${Date.now()}`,
+      name: data.name,
+      location: data.location || "",
+      description: data.description || "",
+      armoires: [],
+    }
     this.directions = this.directions.map(d =>
       d.id === directionId
-        ? { ...d, armoires: d.armoires.filter(a => a.id !== armoireId) }
+        ? { ...d, agences: [...d.agences, agence], armoires: this.flattenArmoires({ ...d, agences: [...d.agences, agence] }) }
         : d
     )
+    this.addAuditLog("Agence creee", "C. Boka", data.name, "direction")
+    this.notify()
+    return agence
+  }
+
+  deleteArmoire(directionId: string, armoireId: string) {
+    this.directions = this.directions.map(d => {
+      if (d.id !== directionId) return d
+      const agences = d.agences.map(ag => ({
+        ...ag,
+        armoires: ag.armoires.filter(a => a.id !== armoireId),
+      }))
+      return { ...d, agences, armoires: this.flattenArmoires({ ...d, agences }) }
+    })
     this.notify()
   }
 
@@ -659,19 +721,99 @@ class Store {
       date: new Date().toLocaleDateString("fr-FR").replace(/\//g, "-"),
       files: [],
     }
-    this.directions = this.directions.map(d =>
-      d.id === directionId
-        ? {
-            ...d,
-            armoires: d.armoires.map(a =>
-              a.id === armoireId ? { ...a, dossiers: [...a.dossiers, dossier] } : a
-            ),
-          }
-        : d
-    )
+    this.directions = this.directions.map(d => {
+      if (d.id !== directionId) return d
+      if (d.agences.length > 0) {
+        const agences = d.agences.map(ag => ({
+          ...ag,
+          armoires: ag.armoires.map(a =>
+            a.id === armoireId ? { ...a, dossiers: [...a.dossiers, dossier] } : a
+          ),
+        }))
+        return { ...d, agences, armoires: this.flattenArmoires({ ...d, agences }) }
+      }
+
+      const armoires = d.armoires.map(a =>
+        a.id === armoireId ? { ...a, dossiers: [...a.dossiers, dossier] } : a
+      )
+      return { ...d, armoires }
+    })
     this.addAuditLog("Dossier cree", "C. Boka", name, "dossier")
     this.notify()
     return dossier
+  }
+
+  addDocuments(
+    directionId: string,
+    armoireId: string,
+    dossierId: string,
+    files: { file: File; source: "upload" | "scan" }[]
+  ) {
+    const today = new Date().toLocaleDateString("fr-FR").replace(/\//g, "-")
+    const guessType = (fileName: string): DocFile["type"] => {
+      const ext = fileName.split('.').pop()?.toLowerCase() ?? ''
+      if (ext === 'pdf') return 'pdf'
+      if (ext === 'xlsx' || ext === 'xls') return 'xlsx'
+      if (ext === 'docx' || ext === 'doc') return 'docx'
+      return 'img'
+    }
+
+    const docs: DocFile[] = files.map((entry, index) => ({
+      id: `doc-${Date.now()}-${index}`,
+      name: entry.file.name,
+      type: guessType(entry.file.name),
+      size: `${(entry.file.size / 1024).toFixed(0)} KB`,
+      date: today,
+      status: 'En attente',
+      confidence: 0,
+      author: 'Systeme',
+      description: `Importe depuis ${entry.source}`,
+      tags: [],
+      source: entry.source,
+      versions: [{ version: 1, date: today, author: 'Systeme' }],
+      activity: [{ action: 'Importe', user: 'Systeme', date: today, ip: '127.0.0.1' }],
+    }))
+
+    this.directions = this.directions.map(d => {
+      if (d.id !== directionId) return d
+
+      if (d.agences.length > 0) {
+        const agences = d.agences.map(ag => ({
+          ...ag,
+          armoires: ag.armoires.map(a =>
+            a.id === armoireId
+              ? {
+                  ...a,
+                  dossiers: a.dossiers.map(dos =>
+                    dos.id === dossierId ? { ...dos, files: [...dos.files, ...docs] } : dos
+                  ),
+                }
+              : a
+          ),
+        }))
+        return { ...d, agences, armoires: this.flattenArmoires({ ...d, agences }) }
+      }
+
+      const armoires = d.armoires.map(a =>
+        a.id === armoireId
+          ? {
+              ...a,
+              dossiers: a.dossiers.map(dos =>
+                dos.id === dossierId ? { ...dos, files: [...dos.files, ...docs] } : dos
+              ),
+            }
+          : a
+      )
+      return { ...d, armoires }
+    })
+
+    this.addAuditLog(
+      'Documents importes',
+      'Systeme',
+      `${files.length} fichier(s) importes`,
+      'document'
+    )
+    this.notify()
   }
 
   deleteDossier(directionId: string, armoireId: string, dossierId: string) {

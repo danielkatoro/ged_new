@@ -14,6 +14,7 @@ interface RecentDocument {
   size: string
   date: string
   status: "En attente" | "En validation" | "Approuve" | "Rejete"
+  source: "upload" | "scan"
 }
 
 export function UploadZone() {
@@ -22,6 +23,7 @@ export function UploadZone() {
   const [selectedFile, setSelectedFile] = useState<{ name: string; url: string | null; type: string; file: File | null } | null>(null)
   const [recentDocuments, setRecentDocuments] = useState<RecentDocument[]>([])
   const fileInputRef = useRef<HTMLInputElement>(null)
+  const scanInputRef = useRef<HTMLInputElement>(null)
 
   // Load recent documents from localStorage
   useEffect(() => {
@@ -43,7 +45,7 @@ export function UploadZone() {
   }
 
   // Handle file upload with chunks
-  const handleUpload = (file: File) => {
+  const handleUpload = (file: File, source: 'upload' | 'scan' = 'upload') => {
     const fileId = `${Date.now()}-${Math.random()}`
     
     // Add to recent documents immediately
@@ -53,7 +55,8 @@ export function UploadZone() {
       type: file.type.split('/')[1].toUpperCase() || 'FILE',
       size: `${(file.size / 1024 / 1024).toFixed(1)} MB`,
       date: new Date().toLocaleDateString('fr-FR'),
-      status: 'En attente'
+      status: 'En attente',
+      source,
     }
     saveToRecent(newDoc)
 
@@ -98,6 +101,17 @@ export function UploadZone() {
     }
   }
 
+  const handleScanClick = () => {
+    scanInputRef.current?.click()
+  }
+
+  const handleScanFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = e.target.files
+    if (files && files.length > 0) {
+      Array.from(files).forEach(file => handleUpload(file, 'scan'))
+    }
+  }
+
   const handleClosePanel = () => {
     if (selectedFile?.url) {
       URL.revokeObjectURL(selectedFile.url)
@@ -117,6 +131,14 @@ export function UploadZone() {
             onChange={handleFileChange}
             multiple
             accept=".pdf,.docx,.xlsx,.jpg,.jpeg,.png,.tiff"
+          />
+          <input
+            ref={scanInputRef}
+            type="file"
+            className="hidden"
+            onChange={handleScanFileChange}
+            accept="image/*"
+            capture="environment"
           />
           <div
             onClick={handleClick}
@@ -150,18 +172,32 @@ export function UploadZone() {
               </p>
             </div>
 
-            <Button
-              type="button"
-              variant="outline"
-              className="mt-2 gap-2 rounded-full px-5 h-10"
-              onClick={(e) => {
-                e.stopPropagation()
-                handleClick()
-              }}
-            >
-              <FileUp className="h-4 w-4" />
-              Choisir des fichiers
-            </Button>
+            <div className="space-y-2">
+              <Button
+                type="button"
+                variant="outline"
+                className="mt-2 gap-2 rounded-full px-5 h-10"
+                onClick={(e) => {
+                  e.stopPropagation()
+                  handleClick()
+                }}
+              >
+                <FileUp className="h-4 w-4" />
+                Choisir des fichiers
+              </Button>
+              <Button
+                type="button"
+                variant="outline"
+                className="gap-2 rounded-full px-5 h-10"
+                onClick={(e) => {
+                  e.stopPropagation()
+                  handleScanClick()
+                }}
+              >
+                <Upload className="h-4 w-4" />
+                Scanner un document
+              </Button>
+            </div>
           </div>
         </div>
       </div>
