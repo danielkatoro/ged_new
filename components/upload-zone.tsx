@@ -1,11 +1,13 @@
 "use client"
 
-import { Upload, FileUp, CheckCircle, Clock, FileText } from "lucide-react"
+import { Upload, FileUp, FileText } from "lucide-react"
+import { Camera } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { useState, useCallback, useRef, useEffect } from "react"
 import { cn } from "@/lib/utils"
 import { DocumentPanel } from "@/components/document-panel"
 import { uploadManager } from "@/lib/upload-manager"
+import { CameraScannerModal } from "@/components/camera-scanner-modal"
 
 interface RecentDocument {
   id: string
@@ -22,8 +24,8 @@ export function UploadZone() {
   const [isPanelOpen, setIsPanelOpen] = useState(false)
   const [selectedFile, setSelectedFile] = useState<{ name: string; url: string | null; type: string; file: File | null } | null>(null)
   const [recentDocuments, setRecentDocuments] = useState<RecentDocument[]>([])
+  const [scannerOpen, setScannerOpen] = useState(false)
   const fileInputRef = useRef<HTMLInputElement>(null)
-  const scanInputRef = useRef<HTMLInputElement>(null)
 
   // Load recent documents from localStorage
   useEffect(() => {
@@ -101,15 +103,8 @@ export function UploadZone() {
     }
   }
 
-  const handleScanClick = () => {
-    scanInputRef.current?.click()
-  }
-
-  const handleScanFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const files = e.target.files
-    if (files && files.length > 0) {
-      Array.from(files).forEach(file => handleUpload(file, 'scan'))
-    }
+  const handleScanCapture = (file: File) => {
+    handleUpload(file, 'scan')
   }
 
   const handleClosePanel = () => {
@@ -131,14 +126,6 @@ export function UploadZone() {
             onChange={handleFileChange}
             multiple
             accept=".pdf,.docx,.xlsx,.jpg,.jpeg,.png,.tiff"
-          />
-          <input
-            ref={scanInputRef}
-            type="file"
-            className="hidden"
-            onChange={handleScanFileChange}
-            accept="image/*"
-            capture="environment"
           />
           <div
             onClick={handleClick}
@@ -191,10 +178,10 @@ export function UploadZone() {
                 className="gap-2 rounded-full px-5 h-10"
                 onClick={(e) => {
                   e.stopPropagation()
-                  handleScanClick()
+                  setScannerOpen(true)
                 }}
               >
-                <Upload className="h-4 w-4" />
+                <Camera className="h-4 w-4" />
                 Scanner un document
               </Button>
             </div>
@@ -263,6 +250,12 @@ export function UploadZone() {
         fileUrl={selectedFile?.url ?? undefined}
         fileType={selectedFile?.type}
         file={selectedFile?.file ?? undefined}
+      />
+
+      <CameraScannerModal
+        open={scannerOpen}
+        onClose={() => setScannerOpen(false)}
+        onCapture={handleScanCapture}
       />
     </>
   )
