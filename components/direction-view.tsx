@@ -10,7 +10,7 @@ import {
   Trash2, Pencil, Search, LayoutGrid, List, ArrowLeft,
   File, FileSpreadsheet, Image, Upload, Users, Check,
   FolderPlus, FilePlus, FolderUp, FileUp, CheckSquare, Square,
-  Eye,
+  Eye, Camera, RotateCcw,
 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -438,6 +438,10 @@ function DossierPanel({
 
 // ─── Import Files Panel ───────────────────────────────────────────────────────
 
+import { CameraScannerModal } from "@/components/camera-scanner-modal"
+
+// ─── Import Files Panel ───────────────────────────────────────────────────────
+
 function ImportFilesPanel({
   open,
   onClose,
@@ -451,7 +455,7 @@ function ImportFilesPanel({
   const [isDragging, setIsDragging] = useState(false)
   const [files, setFiles] = useState<PendingFile[]>([])
   const fileInputRef = useRef<HTMLInputElement>(null)
-  const scanInputRef = useRef<HTMLInputElement>(null)
+  const [scannerOpen, setScannerOpen] = useState(false)
 
   useEffect(() => {
     if (open) setFiles([])
@@ -481,15 +485,8 @@ function ImportFilesPanel({
     }
   }
 
-  const handleScanClick = () => {
-    scanInputRef.current?.click()
-  }
-
-  const handleScanFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const selectedFiles = e.target.files
-    if (selectedFiles) {
-      setFiles(prev => [...prev, ...Array.from(selectedFiles).map(file => ({ file, source: "scan" }))])
-    }
+  const handleScanCapture = (file: File) => {
+    setFiles(prev => [...prev, { file, source: "scan" }])
   }
 
   const handleImport = () => {
@@ -552,14 +549,6 @@ function ImportFilesPanel({
               className="hidden"
               onChange={handleFileChange}
             />
-            <input
-              ref={scanInputRef}
-              type="file"
-              accept="image/*"
-              capture="environment"
-              className="hidden"
-              onChange={handleScanFileChange}
-            />
           </div>
 
           <div className="flex flex-wrap items-center gap-2 mt-3">
@@ -576,9 +565,9 @@ function ImportFilesPanel({
               variant="outline"
               size="sm"
               className="h-9 gap-2"
-              onClick={handleScanClick}
+              onClick={() => setScannerOpen(true)}
             >
-              <Upload className="h-4 w-4" />
+              <Camera className="h-4 w-4" />
               Scanner un document
             </Button>
           </div>
@@ -590,10 +579,19 @@ function ImportFilesPanel({
               <div className="space-y-1 max-h-64 overflow-y-auto">
                 {files.map((pending, index) => (
                   <div key={index} className="flex items-center gap-2 p-2 rounded bg-muted/50">
-                    <FileText className="h-4 w-4 text-muted-foreground shrink-0" />
+                    {pending.source === "scan" ? (
+                      <Camera className="h-4 w-4 text-primary shrink-0" />
+                    ) : (
+                      <FileText className="h-4 w-4 text-muted-foreground shrink-0" />
+                    )}
                     <span className="text-sm text-foreground flex-1 truncate">{pending.file.name}</span>
                     <span className="text-xs text-muted-foreground">{(pending.file.size / 1024).toFixed(0)} KB</span>
-                    <span className="text-xs text-muted-foreground uppercase">{pending.source}</span>
+                    <span className={cn(
+                      "text-xs uppercase px-1.5 py-0.5 rounded",
+                      pending.source === "scan" ? "bg-primary/10 text-primary" : "text-muted-foreground"
+                    )}>
+                      {pending.source}
+                    </span>
                     <Button
                       variant="ghost"
                       size="icon"
@@ -618,6 +616,13 @@ function ImportFilesPanel({
           </Button>
         </div>
       </div>
+
+      {/* Camera Scanner Modal */}
+      <CameraScannerModal
+        open={scannerOpen}
+        onClose={() => setScannerOpen(false)}
+        onCapture={handleScanCapture}
+      />
     </>
   )
 }
