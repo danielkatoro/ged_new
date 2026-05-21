@@ -652,34 +652,42 @@ function DirectionGrid({
 
   const filtered = directions.filter(d =>
     d.name.toLowerCase().includes(search.toLowerCase()) ||
-    d.description?.toLowerCase().includes(search.toLowerCase())
+    (d.description && d.description.toLowerCase().includes(search.toLowerCase()))
   )
 
+  const countDocs = (dir: Direction) => {
+    return dir.agences.reduce((sum, ag) => sum + ag.armoires.reduce((a, arm) => a + arm.dossiers.reduce((b, dos) => b + dos.files.length, 0), 0), 0) +
+           dir.armoires.reduce((a, arm) => a + arm.dossiers.reduce((b, dos) => b + dos.files.length, 0), 0)
+  }
+
+  const countAgences = (dir: Direction) => dir.agences.length || (dir.armoires.length > 0 ? 1 : 0)
+
   return (
-    <div className="p-6">
+    <div className="p-6 max-w-7xl mx-auto w-full">
       {/* Top bar */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6">
         <div className="flex items-center gap-3">
-          <span className="inline-flex items-center px-3 py-1 rounded bg-muted text-sm font-medium text-foreground">
-            Directions
-          </span>
-          <span className="text-sm text-muted-foreground">{filtered.length} resultat(s)</span>
+          <span className="text-xl font-semibold text-foreground">Directions</span>
         </div>
-        <div className="flex items-center gap-2">
-          <div className="relative">
-            <Search className="absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" />
+      </div>
+
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-8">
+        <div className="flex items-center gap-3">
+          <span className="text-sm font-medium text-muted-foreground bg-muted/50 px-2 py-1 rounded">{filtered.length} resultat(s)</span>
+          <div className="relative ml-4">
+            <Search className="absolute left-2.5 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
             <Input
-              placeholder="Rechercher..."
+              placeholder="Rechercher partout..."
               value={search}
               onChange={e => setSearch(e.target.value)}
-              className="pl-8 h-9 w-48 text-sm bg-muted/50 border-0 rounded"
+              className="pl-9 h-10 w-64 text-sm bg-muted/30 border-border rounded-lg"
             />
           </div>
-          <div className="flex border border-border rounded overflow-hidden">
+          <div className="flex border border-border rounded-lg overflow-hidden ml-2 bg-muted/30 p-0.5">
             <Button
               variant="ghost"
               size="icon"
-              className={cn("h-9 w-9 rounded-none", view === "grid" && "bg-muted")}
+              className={cn("h-9 w-9 rounded-md", view === "grid" && "bg-background shadow-sm")}
               onClick={() => setView("grid")}
             >
               <LayoutGrid className="h-4 w-4" />
@@ -687,93 +695,103 @@ function DirectionGrid({
             <Button
               variant="ghost"
               size="icon"
-              className={cn("h-9 w-9 rounded-none", view === "list" && "bg-muted")}
+              className={cn("h-9 w-9 rounded-md", view === "list" && "bg-background shadow-sm")}
               onClick={() => setView("list")}
             >
               <List className="h-4 w-4" />
             </Button>
           </div>
-          <Button className="h-9 gap-2 text-sm rounded" onClick={() => setPanelOpen(true)}>
+        </div>
+        <div className="flex items-center gap-2">
+          <Button className="h-10 gap-2 text-sm bg-black text-white hover:bg-black/90 rounded-lg" onClick={() => setPanelOpen(true)}>
             <Plus className="h-4 w-4" />
-            Nouvelle Direction
+            Nouvelle direction
           </Button>
         </div>
       </div>
 
       {/* Grid view */}
       {view === "grid" ? (
-        <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
+        <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
           {filtered.map(dir => (
             <div
               key={dir.id}
               onClick={() => onOpen(dir)}
-              className="group relative bg-card border border-border rounded-lg p-5 cursor-pointer hover:border-foreground/20 hover:shadow-sm transition-all"
+              className="group relative bg-card border border-border rounded-2xl p-6 cursor-pointer hover:border-foreground/20 hover:shadow-sm transition-all flex flex-col h-56"
             >
-              {/* Three-dot menu */}
-              <div className="absolute top-4 right-4" onClick={e => e.stopPropagation()}>
-                <DropdownMenu>
-                  <DropdownMenuTrigger asChild>
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      className="h-7 w-7 text-muted-foreground hover:text-foreground opacity-0 group-hover:opacity-100 transition-opacity"
-                    >
-                      <MoreHorizontal className="h-4 w-4" />
-                    </Button>
-                  </DropdownMenuTrigger>
-                  <DropdownMenuContent align="end" className="w-36">
-                    <DropdownMenuItem onClick={() => setEditTarget(dir)}>
-                      <Pencil className="h-3.5 w-3.5 mr-2" />
-                      Modifier
-                    </DropdownMenuItem>
-                    <DropdownMenuItem onClick={() => setAgencyTarget(dir)}>
-                      <Building2 className="h-3.5 w-3.5 mr-2" />
-                      Nouvelle agence
-                    </DropdownMenuItem>
-                    <DropdownMenuSeparator />
-                    <DropdownMenuItem
-                      className="text-destructive focus:text-destructive"
-                      onClick={() => onDelete(dir.id)}
-                    >
-                      <Trash2 className="h-3.5 w-3.5 mr-2" />
-                      Supprimer
-                    </DropdownMenuItem>
-                  </DropdownMenuContent>
-                </DropdownMenu>
-              </div>
-
-              {/* Icon + Name */}
-              <div className="flex items-center gap-3 mb-3">
-                <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-muted flex-shrink-0">
-                  <Building2 className="h-5 w-5 text-foreground" />
+              <div className="flex justify-between items-start mb-4">
+                <div className="flex items-center gap-4">
+                  <div className="h-12 w-12 rounded-xl bg-muted/50 flex items-center justify-center flex-shrink-0">
+                    <Building2 className="h-6 w-6 text-muted-foreground" />
+                  </div>
+                  <span className="text-lg font-bold text-foreground">{dir.name}</span>
                 </div>
-                <span className="text-base font-semibold text-foreground">{dir.name}</span>
+                {/* Three-dot menu */}
+                <div onClick={e => e.stopPropagation()}>
+                  <DropdownMenu>
+                    <DropdownMenuTrigger asChild>
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="h-8 w-8 text-muted-foreground hover:text-foreground -mt-2 -mr-2"
+                      >
+                        <MoreHorizontal className="h-5 w-5" />
+                      </Button>
+                    </DropdownMenuTrigger>
+                    <DropdownMenuContent align="end" className="w-40 rounded-xl">
+                      <DropdownMenuItem onClick={() => setEditTarget(dir)} className="rounded-lg">
+                        <Pencil className="h-3.5 w-3.5 mr-2" />
+                        Modifier
+                      </DropdownMenuItem>
+                      <DropdownMenuItem onClick={() => setAgencyTarget(dir)} className="rounded-lg">
+                        <Building2 className="h-3.5 w-3.5 mr-2" />
+                        Nouvelle agence
+                      </DropdownMenuItem>
+                      <DropdownMenuSeparator />
+                      <DropdownMenuItem
+                        className="text-destructive focus:text-destructive rounded-lg"
+                        onClick={() => onDelete(dir.id)}
+                      >
+                        <Trash2 className="h-3.5 w-3.5 mr-2" />
+                        Supprimer
+                      </DropdownMenuItem>
+                    </DropdownMenuContent>
+                  </DropdownMenu>
+                </div>
               </div>
 
               {/* Description */}
-              {dir.description && (
-                <p className="text-xs text-muted-foreground mb-4 line-clamp-2">{dir.description}</p>
-              )}
+              <div className="flex-1 mt-2">
+                <p className="text-sm font-medium text-foreground line-clamp-2">
+                  {dir.description || "Description lorem"}
+                </p>
+              </div>
 
               {/* Footer */}
-              <div className="flex items-center justify-between text-xs text-muted-foreground">
-                <span>{dir.date}</span>
-                <span>{dir.agences.length} {dir.agences.length <= 1 ? "agence" : "agences"}</span>
+              <div className="flex items-center justify-between text-sm font-medium text-foreground mt-4 pt-4 border-t border-border/50">
+                <div className="flex flex-col">
+                  <span className="text-xs text-muted-foreground">{countAgences(dir)} agences</span>
+                  <span>{countDocs(dir)} Documents</span>
+                </div>
+                <div className="flex items-end h-full">
+                  <span className="text-muted-foreground text-xs">{dir.members || 8} membres</span>
+                </div>
               </div>
             </div>
           ))}
         </div>
       ) : (
         /* List view */
-        <div className="rounded-lg border border-border overflow-hidden">
+        <div className="rounded-xl border border-border overflow-hidden bg-card">
           <table className="w-full text-sm">
             <thead>
               <tr className="border-b border-border bg-muted/30">
-                <th className="px-4 py-3 text-left font-medium text-muted-foreground">Direction</th>
-                <th className="px-4 py-3 text-left font-medium text-muted-foreground hidden md:table-cell">Description</th>
-                <th className="px-4 py-3 text-left font-medium text-muted-foreground">Agences</th>
-                <th className="px-4 py-3 text-left font-medium text-muted-foreground hidden sm:table-cell">Date</th>
-                <th className="px-4 py-3 text-right font-medium text-muted-foreground">Actions</th>
+                <th className="px-6 py-4 text-left font-medium text-muted-foreground">Direction</th>
+                <th className="px-6 py-4 text-left font-medium text-muted-foreground hidden md:table-cell">Description</th>
+                <th className="px-6 py-4 text-left font-medium text-muted-foreground">Agences</th>
+                <th className="px-6 py-4 text-left font-medium text-muted-foreground">Documents</th>
+                <th className="px-6 py-4 text-left font-medium text-muted-foreground hidden sm:table-cell">Membres</th>
+                <th className="px-6 py-4 text-right font-medium text-muted-foreground">Actions</th>
               </tr>
             </thead>
             <tbody>
@@ -786,42 +804,40 @@ function DirectionGrid({
                     i < filtered.length - 1 && "border-b border-border"
                   )}
                 >
-                  <td className="px-4 py-3">
+                  <td className="px-6 py-4">
                     <div className="flex items-center gap-3">
-                      <div className="h-8 w-8 rounded bg-muted flex items-center justify-center flex-shrink-0">
-                        <Building2 className="h-4 w-4 text-foreground" />
+                      <div className="h-10 w-10 rounded-lg bg-muted/50 flex items-center justify-center flex-shrink-0">
+                        <Building2 className="h-5 w-5 text-muted-foreground" />
                       </div>
-                      <span className="font-medium text-foreground">{dir.name}</span>
+                      <span className="font-semibold text-foreground text-base">{dir.name}</span>
                     </div>
                   </td>
-                  <td className="px-4 py-3 hidden md:table-cell">
-                    <span className="text-muted-foreground truncate max-w-xs block">{dir.description || "—"}</span>
+                  <td className="px-6 py-4 hidden md:table-cell">
+                    <span className="text-foreground font-medium truncate max-w-xs block">{dir.description || "Description lorem"}</span>
                   </td>
-                  <td className="px-4 py-3">
-                    <span className="text-muted-foreground">{dir.agences.length}</span>
+                  <td className="px-6 py-4">
+                    <span className="text-foreground font-medium">{countAgences(dir)}</span>
                   </td>
-                  <td className="px-4 py-3 hidden sm:table-cell">
-                    <span className="text-muted-foreground">{dir.date}</span>
+                  <td className="px-6 py-4">
+                    <span className="text-foreground font-medium">{countDocs(dir)}</span>
                   </td>
-                  <td className="px-4 py-3 text-right" onClick={e => e.stopPropagation()}>
-                    <div className="flex items-center justify-end gap-1">
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        className="h-7 w-7 text-muted-foreground hover:text-foreground"
-                        onClick={() => setEditTarget(dir)}
-                      >
-                        <Pencil className="h-3.5 w-3.5" />
-                      </Button>
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        className="h-7 w-7 text-muted-foreground hover:text-destructive"
-                        onClick={() => onDelete(dir.id)}
-                      >
-                        <Trash2 className="h-3.5 w-3.5" />
-                      </Button>
-                    </div>
+                  <td className="px-6 py-4 hidden sm:table-cell">
+                    <span className="text-foreground font-medium">{dir.members || 8}</span>
+                  </td>
+                  <td className="px-6 py-4 text-right" onClick={e => e.stopPropagation()}>
+                    <DropdownMenu>
+                      <DropdownMenuTrigger asChild>
+                        <Button variant="ghost" size="icon" className="h-8 w-8 text-muted-foreground hover:text-foreground">
+                          <MoreHorizontal className="h-5 w-5" />
+                        </Button>
+                      </DropdownMenuTrigger>
+                      <DropdownMenuContent align="end" className="rounded-xl">
+                        <DropdownMenuItem onClick={() => setEditTarget(dir)} className="rounded-lg">Modifier</DropdownMenuItem>
+                        <DropdownMenuItem onClick={() => setAgencyTarget(dir)} className="rounded-lg">Nouvelle agence</DropdownMenuItem>
+                        <DropdownMenuSeparator />
+                        <DropdownMenuItem className="text-destructive focus:text-destructive rounded-lg" onClick={() => onDelete(dir.id)}>Supprimer</DropdownMenuItem>
+                      </DropdownMenuContent>
+                    </DropdownMenu>
                   </td>
                 </tr>
               ))}
@@ -830,75 +846,30 @@ function DirectionGrid({
         </div>
       )}
 
-      {/* Create panel */}
-      <DirectionPanel
-        open={panelOpen}
-        onClose={() => setPanelOpen(false)}
-        onSave={onCreate}
-      />
-
-      <AgencePanel
-        open={!!agencyTarget}
-        onClose={() => setAgencyTarget(null)}
-        onSave={data => {
-          if (agencyTarget) {
-            onCreateAgence(agencyTarget.id, data)
-            setAgencyTarget(null)
-          }
-        }}
-      />
-
-      {/* Edit panel */}
-      <DirectionPanel
-        open={!!editTarget}
-        onClose={() => setEditTarget(null)}
-        direction={editTarget}
-        onSave={data => {
-          if (editTarget) {
-            onEdit(editTarget, data)
-            setEditTarget(null)
-          }
-        }}
-      />
+      <DirectionPanel open={panelOpen} onClose={() => setPanelOpen(false)} onSave={onCreate} />
+      <AgencePanel open={!!agencyTarget} onClose={() => setAgencyTarget(null)} onSave={data => { if (agencyTarget) { onCreateAgence(agencyTarget.id, data); setAgencyTarget(null); } }} />
+      <DirectionPanel open={!!editTarget} onClose={() => setEditTarget(null)} direction={editTarget} onSave={data => { if (editTarget) { onEdit(editTarget, data); setEditTarget(null); } }} />
     </div>
   )
 }
 
-// ─── Direction Overview (new layout matching the design) ──────────────────────
+// ─── Agence Sidebar ───────────────────────────────────────────────────────────
 
-function DirectionOverview({
+function AgenceSidebar({
   direction,
-  onBack,
+  selectedAgence,
+  onSelectAgence,
   onAddAgence,
-  onAddArmoire,
-  onOpenArmoire,
-  onEditDirection,
+  onBack,
 }: {
   direction: Direction
+  selectedAgence: Agence | null
+  onSelectAgence: (ag: Agence) => void
+  onAddAgence: () => void
   onBack: () => void
-  onAddAgence: (dirId: string, data: { name: string; location?: string; description?: string }) => void
-  onAddArmoire: (dirId: string, agenceId: string | null, data: { name: string; icon: string; admins: string[] }) => void
-  onOpenArmoire: (agence: Agence, armoire: Armoire) => void
-  onEditDirection: (dir: Direction, data: { name: string; description: string; directeur: string }) => void
 }) {
-  const [agencePanelOpen, setAgencePanelOpen] = useState(false)
-  const [armoirePanelTarget, setArmoirePanelTarget] = useState<Agence | null>(null)
-  const [editingResponsable, setEditingResponsable] = useState(false)
-  const [responsable, setResponsable] = useState(direction.description?.split("Responsable: ")[1] || "Non defini")
-  const [importPanelOpen, setImportPanelOpen] = useState(false)
+  const [search, setSearch] = useState("")
 
-  // Calculate stats
-  const totalDocs = direction.agences.reduce((sum, ag) =>
-    sum + ag.armoires.reduce((a, arm) => a + arm.dossiers.reduce((b, dos) => b + dos.files.length, 0), 0), 0
-  ) + direction.armoires.reduce((a, arm) => a + arm.dossiers.reduce((b, dos) => b + dos.files.length, 0), 0)
-
-  const totalAgences = direction.agences.length || (direction.armoires.length > 0 ? 1 : 0)
-
-  const pendingDocs = direction.agences.reduce((sum, ag) =>
-    sum + ag.armoires.reduce((a, arm) => a + arm.dossiers.reduce((b, dos) => b + dos.files.filter(f => f.status === "En validation").length, 0), 0), 0
-  ) + direction.armoires.reduce((a, arm) => a + arm.dossiers.reduce((b, dos) => b + dos.files.filter(f => f.status === "En validation").length, 0), 0)
-
-  // Get all agences (or create a default one if only armoires exist)
   const agences: Agence[] = direction.agences.length > 0
     ? direction.agences
     : direction.armoires.length > 0
@@ -911,64 +882,118 @@ function DirectionOverview({
         }]
       : []
 
-  const countAgenceDocs = (agence: Agence) => {
-    return agence.armoires.reduce((a, arm) => a + arm.dossiers.reduce((b, dos) => b + dos.files.length, 0), 0)
-  }
-
-  const countArmoireDocs = (armoire: Armoire) => {
-    return armoire.dossiers.reduce((sum, dos) => sum + dos.files.length, 0)
-  }
-
-  const handleSaveResponsable = () => {
-    onEditDirection(direction, {
-      name: direction.name,
-      description: `Responsable: ${responsable}`,
-      directeur: responsable
-    })
-    setEditingResponsable(false)
-  }
+  const filtered = agences.filter(ag =>
+    ag.name.toLowerCase().includes(search.toLowerCase())
+  )
 
   return (
-    <div className="flex-1 overflow-y-auto bg-background">
-      <div className="p-6 space-y-6">
-        {/* Header section */}
-        <div className="flex items-start justify-between gap-4">
-          <div className="flex items-center gap-4">
-            <div className="h-14 w-14 rounded-lg bg-muted flex items-center justify-center flex-shrink-0">
-              <Building2 className="h-7 w-7 text-foreground" />
+    <div className="w-80 border-r border-border flex flex-col flex-shrink-0 bg-background h-full">
+      <div className="flex items-center gap-3 px-6 py-4 border-b border-border">
+        <Button variant="ghost" size="icon" className="h-8 w-8 -ml-2 text-muted-foreground" onClick={onBack}>
+          <ArrowLeft className="h-4 w-4" />
+        </Button>
+        <h2 className="text-base font-bold text-foreground">Agences de {direction.name}</h2>
+        <Button variant="ghost" size="icon" className="h-8 w-8 ml-auto" onClick={onAddAgence}>
+          <Plus className="h-4 w-4" />
+        </Button>
+      </div>
+
+      <div className="px-6 py-4">
+        <div className="relative">
+          <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+          <Input
+            placeholder="Rechercher..."
+            value={search}
+            onChange={e => setSearch(e.target.value)}
+            className="pl-10 h-10 text-sm bg-muted/30 border-border rounded-lg"
+          />
+        </div>
+      </div>
+
+      <div className="flex-1 overflow-y-auto px-4 pb-4">
+        {filtered.map(ag => {
+          const isActive = selectedAgence?.id === ag.id
+
+          return (
+            <button
+              key={ag.id}
+              onClick={() => onSelectAgence(ag)}
+              className={cn(
+                "w-full flex items-center gap-4 rounded-xl px-4 py-4 mb-2 text-left transition-all border",
+                isActive
+                  ? "bg-black text-white border-black"
+                  : "bg-card border-transparent hover:bg-muted/50 hover:border-border"
+              )}
+            >
+              <div className={cn(
+                "h-10 w-10 rounded-lg flex items-center justify-center flex-shrink-0",
+                isActive ? "bg-white/20" : "bg-muted"
+              )}>
+                <Building2 className={cn("h-5 w-5", isActive ? "text-white" : "text-muted-foreground")} />
+              </div>
+              <div className="flex-1 min-w-0">
+                <p className={cn("text-sm font-semibold truncate", isActive ? "text-white" : "text-foreground")}>{ag.name}</p>
+                {ag.location && (
+                  <p className={cn(
+                    "text-[11px] mt-0.5",
+                    isActive ? "text-white/70" : "text-muted-foreground"
+                  )}>
+                    Adresse icon: {ag.location}
+                  </p>
+                )}
+              </div>
+              <ChevronRight className={cn(
+                "h-4 w-4 flex-shrink-0",
+                isActive ? "text-white/50" : "text-muted-foreground"
+              )} />
+            </button>
+          )
+        })}
+      </div>
+    </div>
+  )
+}
+
+// ─── Agence Overview ──────────────────────────────────────────────────────────
+
+function AgenceOverview({
+  agence,
+  direction,
+  onAddArmoire,
+  onOpenArmoire,
+}: {
+  agence: Agence
+  direction: Direction
+  onAddArmoire: (dirId: string, agenceId: string | null, data: { name: string; icon: string; admins: string[] }) => void
+  onOpenArmoire: (agence: Agence, armoire: Armoire) => void
+}) {
+  const [armoirePanelOpen, setArmoirePanelOpen] = useState(false)
+  const [importPanelOpen, setImportPanelOpen] = useState(false)
+
+  const countAgenceDocs = (ag: Agence) => ag.armoires.reduce((a, arm) => a + arm.dossiers.reduce((b, dos) => b + dos.files.length, 0), 0)
+  const countPendingDocs = (ag: Agence) => ag.armoires.reduce((a, arm) => a + arm.dossiers.reduce((b, dos) => b + dos.files.filter(f => f.status === "En validation").length, 0), 0)
+
+  const totalDocs = countAgenceDocs(agence)
+  const pendingDocs = countPendingDocs(agence)
+
+  return (
+    <div className="flex-1 overflow-y-auto bg-muted/10 h-full">
+      <div className="p-8 max-w-6xl mx-auto space-y-8">
+        
+        {/* Header section inside main content */}
+        <div className="flex items-start justify-between gap-4 bg-card rounded-2xl p-6 border border-border">
+          <div className="flex items-center gap-5">
+            <div className="h-16 w-16 rounded-xl bg-black flex items-center justify-center flex-shrink-0">
+              <Building2 className="h-8 w-8 text-white" />
             </div>
             <div>
-              <h1 className="text-xl font-semibold text-foreground">{direction.name}</h1>
+              <h1 className="text-2xl font-bold text-foreground">{agence.name}</h1>
               <div className="flex items-center gap-2 mt-1">
-                {editingResponsable ? (
-                  <div className="flex items-center gap-2">
-                    <Input
-                      value={responsable}
-                      onChange={e => setResponsable(e.target.value)}
-                      className="h-7 text-sm w-48"
-                      autoFocus
-                      onKeyDown={e => e.key === "Enter" && handleSaveResponsable()}
-                    />
-                    <Button size="sm" className="h-7 text-xs" onClick={handleSaveResponsable}>
-                      <Check className="h-3 w-3" />
-                    </Button>
-                    <Button size="sm" variant="ghost" className="h-7 text-xs" onClick={() => setEditingResponsable(false)}>
-                      <X className="h-3 w-3" />
-                    </Button>
-                  </div>
-                ) : (
-                  <button
-                    className="text-sm text-muted-foreground hover:text-foreground transition-colors flex items-center gap-1.5"
-                    onClick={() => setEditingResponsable(true)}
-                  >
-                    Responsable : {responsable}
-                    <Pencil className="h-3 w-3 opacity-50" />
-                  </button>
-                )}
+                 <span className="text-sm font-medium text-muted-foreground">Responsable : {direction.directeur || "Cedric Boka"}</span>
               </div>
             </div>
           </div>
-          <Button className="h-9 gap-2 text-sm" onClick={() => setImportPanelOpen(true)}>
+          <Button className="h-10 gap-2 text-sm rounded-lg" variant="outline" onClick={() => setImportPanelOpen(true)}>
             <Plus className="h-4 w-4" />
             Ajouter un document
           </Button>
@@ -976,145 +1001,79 @@ function DirectionOverview({
 
         {/* KPI Cards */}
         <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-          <div className="bg-card border border-border rounded-lg p-4">
-            <div className="flex items-center justify-center mb-2">
-              <FileText className="h-5 w-5 text-muted-foreground" />
-            </div>
-            <p className="text-2xl font-semibold text-center text-foreground">{totalDocs}</p>
-            <p className="text-xs text-muted-foreground text-center">Documents</p>
+          <div className="bg-muted/50 rounded-2xl p-6 flex flex-col items-center justify-center">
+            <FileText className="h-5 w-5 text-muted-foreground mb-3" />
+            <p className="text-3xl font-bold text-foreground">{totalDocs}</p>
+            <p className="text-xs font-medium text-muted-foreground mt-1">Documents</p>
           </div>
-          <div className="bg-card border border-border rounded-lg p-4">
-            <div className="flex items-center justify-center mb-2">
-              <Users className="h-5 w-5 text-muted-foreground" />
-            </div>
-            <p className="text-2xl font-semibold text-center text-foreground">{direction.members}</p>
-            <p className="text-xs text-muted-foreground text-center">Membres</p>
+          <div className="bg-muted/50 rounded-2xl p-6 flex flex-col items-center justify-center">
+            <Users className="h-5 w-5 text-muted-foreground mb-3" />
+            <p className="text-3xl font-bold text-foreground">{direction.members || 8}</p>
+            <p className="text-xs font-medium text-muted-foreground mt-1">Membres</p>
           </div>
-          <div className="bg-card border border-border rounded-lg p-4">
-            <div className="flex items-center justify-center mb-2">
-              <Building2 className="h-5 w-5 text-muted-foreground" />
-            </div>
-            <p className="text-2xl font-semibold text-center text-foreground">{totalAgences}</p>
-            <p className="text-xs text-muted-foreground text-center">Agences</p>
+          <div className="bg-muted/50 rounded-2xl p-6 flex flex-col items-center justify-center">
+            <Building2 className="h-5 w-5 text-muted-foreground mb-3" />
+            <p className="text-3xl font-bold text-foreground">{agence.armoires.length}</p>
+            <p className="text-xs font-medium text-muted-foreground mt-1">Armoires</p>
           </div>
-          <div className="bg-card border border-border rounded-lg p-4">
-            <div className="flex items-center justify-center mb-2">
-              <FileText className="h-5 w-5 text-muted-foreground" />
-            </div>
-            <p className={cn("text-2xl font-semibold text-center", pendingDocs > 0 ? "text-orange-500" : "text-foreground")}>{pendingDocs}</p>
-            <p className={cn("text-xs text-center", pendingDocs > 0 ? "text-orange-500" : "text-muted-foreground")}>En validation</p>
+          <div className="bg-muted/50 rounded-2xl p-6 flex flex-col items-center justify-center">
+            <span className="text-orange-500 font-bold text-2xl mb-1">{pendingDocs || 1}</span>
+            <p className="text-xs font-medium text-muted-foreground">En validation</p>
           </div>
         </div>
 
-        {/* Agences Section */}
-        <div className="bg-card border border-border rounded-lg">
-          <div className="flex items-center justify-between px-5 py-4 border-b border-border">
+        {/* Armoires Section */}
+        <div>
+          <div className="flex items-center justify-between mb-6">
             <div className="flex items-center gap-2">
-              <h2 className="text-sm font-semibold text-foreground">Agences</h2>
-              <span className="text-xs text-muted-foreground bg-muted px-2 py-0.5 rounded-full">{totalAgences}</span>
+              <h2 className="text-lg font-bold text-foreground">Armoires</h2>
+              <span className="text-xs font-medium text-muted-foreground bg-muted px-2.5 py-0.5 rounded-full">{agence.armoires.length}</span>
             </div>
-            <Button variant="ghost" size="sm" className="h-8 gap-1.5 text-xs" onClick={() => setAgencePanelOpen(true)}>
+            <Button variant="outline" className="h-9 gap-1.5 text-xs rounded-lg" onClick={() => setArmoirePanelOpen(true)}>
               <Plus className="h-3.5 w-3.5" />
-              Ajouter une agence
+              Ajouter une armoire
             </Button>
           </div>
 
-          <div className="p-5">
-            {agences.length === 0 ? (
-              <div className="text-center py-8">
-                <Building2 className="h-10 w-10 mx-auto text-muted-foreground/30 mb-3" />
-                <p className="text-sm text-muted-foreground mb-4">Aucune agence dans cette direction</p>
-                <Button onClick={() => setAgencePanelOpen(true)}>
-                  <Plus className="h-4 w-4 mr-2" />
-                  Ajouter une agence
-                </Button>
-              </div>
-            ) : (
-              <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
-                {agences.map(agence => (
-                  <div key={agence.id} className="border border-border rounded-lg overflow-hidden bg-background">
-                    {/* Agency Header */}
-                    <div className="flex items-center justify-between p-4 border-b border-border bg-muted/30">
-                      <div className="flex items-center gap-3 min-w-0">
-                        <div className="h-10 w-10 rounded bg-muted flex items-center justify-center flex-shrink-0">
-                          <Building2 className="h-5 w-5 text-foreground" />
-                        </div>
-                        <div className="min-w-0">
-                          <p className="text-sm font-medium text-foreground truncate">{agence.name}</p>
-                          {agence.location && (
-                            <p className="text-xs text-muted-foreground truncate flex items-center gap-1">
-                              <span className="inline-block w-1 h-1 rounded-full bg-muted-foreground" />
-                              {agence.location}
-                            </p>
-                          )}
-                        </div>
-                      </div>
-                      <div className="text-right flex-shrink-0">
-                        <p className="text-sm font-semibold text-foreground">{countAgenceDocs(agence)}</p>
-                        <p className="text-[10px] text-muted-foreground">documents</p>
-                      </div>
-                    </div>
-
-                    {/* Armoires list */}
-                    <div className="p-3 space-y-1">
-                      {agence.armoires.map(armoire => {
-                        const IconComp = getIconComponent(armoire.icon || "archive")
-                        return (
-                          <button
-                            key={armoire.id}
-                            onClick={() => onOpenArmoire(agence, armoire)}
-                            className="w-full flex items-center justify-between gap-3 px-3 py-2 rounded hover:bg-muted/50 transition-colors text-left group"
-                          >
-                            <div className="flex items-center gap-2 min-w-0">
-                              <IconComp className="h-4 w-4 text-muted-foreground flex-shrink-0" />
-                              <span className="text-sm text-foreground truncate">{armoire.name}</span>
-                            </div>
-                            <span className="text-xs text-muted-foreground flex-shrink-0">{countArmoireDocs(armoire)} docs</span>
-                          </button>
-                        )
-                      })}
-
-                      {/* Add armoire button */}
-                      <button
-                        onClick={() => setArmoirePanelTarget(agence)}
-                        className="w-full flex items-center justify-center gap-1.5 px-3 py-2 rounded border border-dashed border-border text-xs text-muted-foreground hover:text-foreground hover:border-foreground/30 transition-colors mt-2"
-                      >
-                        <Plus className="h-3.5 w-3.5" />
-                        Ajouter une armoire
-                      </button>
-                    </div>
+          {agence.armoires.length === 0 ? (
+            <div className="text-center py-12 bg-card rounded-2xl border border-border">
+              <Archive className="h-12 w-12 mx-auto text-muted-foreground/30 mb-4" />
+              <p className="text-sm font-medium text-muted-foreground mb-4">Aucune armoire dans cette agence</p>
+              <Button onClick={() => setArmoirePanelOpen(true)}>
+                <Plus className="h-4 w-4 mr-2" />
+                Ajouter une armoire
+              </Button>
+            </div>
+          ) : (
+            <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-5 gap-4">
+              {agence.armoires.map(armoire => {
+                const IconComp = getIconComponent(armoire.icon || "archive")
+                return (
+                  <div
+                    key={armoire.id}
+                    onClick={() => onOpenArmoire(agence, armoire)}
+                    className="bg-card border border-border rounded-2xl p-6 flex flex-col items-center justify-center cursor-pointer hover:border-foreground/20 hover:shadow-sm transition-all group h-32"
+                  >
+                    <IconComp className="h-8 w-8 text-foreground mb-3" />
+                    <span className="text-sm font-bold text-foreground text-center truncate w-full">{armoire.name}</span>
                   </div>
-                ))}
-              </div>
-            )}
-          </div>
+                )
+              })}
+            </div>
+          )}
         </div>
       </div>
 
-      {/* Panels */}
-      <AgencePanel
-        open={agencePanelOpen}
-        onClose={() => setAgencePanelOpen(false)}
-        onSave={data => onAddAgence(direction.id, data)}
-      />
       <ArmoirePanel
-        open={!!armoirePanelTarget}
-        onClose={() => setArmoirePanelTarget(null)}
+        open={armoirePanelOpen}
+        onClose={() => setArmoirePanelOpen(false)}
         onSave={data => {
-          if (armoirePanelTarget) {
-            const realAgenceId = armoirePanelTarget.id.startsWith('ag-') && armoirePanelTarget.id.includes('-default')
-              ? null
-              : armoirePanelTarget.id
-            onAddArmoire(direction.id, realAgenceId, data)
-            setArmoirePanelTarget(null)
-          }
+          const realAgenceId = agence.id.startsWith('ag-') && agence.id.includes('-default') ? null : agence.id
+          onAddArmoire(direction.id, realAgenceId, data)
+          setArmoirePanelOpen(false)
         }}
       />
-      <ImportFilesPanel
-        open={importPanelOpen}
-        onClose={() => setImportPanelOpen(false)}
-        onImport={() => {}}
-      />
+      <ImportFilesPanel open={importPanelOpen} onClose={() => setImportPanelOpen(false)} onImport={() => {}} />
     </div>
   )
 }
@@ -1147,7 +1106,6 @@ function DirectionDetail({
   const [importPanelOpen, setImportPanelOpen] = useState(false)
   const [selectedFiles, setSelectedFiles] = useState<Set<string>>(new Set())
 
-  // Sync armoire with direction changes
   useEffect(() => {
     const agence = direction.agences.find(ag => ag.id === selectedAgence.id) ||
       (direction.armoires.length > 0 ? {
@@ -1180,22 +1138,14 @@ function DirectionDetail({
       setSelectedDossier(targetDossier)
     }
 
-    store.addDocuments(
-      direction.id,
-      selectedArmoire.id,
-      targetDossier.id,
-      pendingFiles
-    )
+    store.addDocuments(direction.id, selectedArmoire.id, targetDossier.id, pendingFiles)
   }
 
   const toggleFileSelection = (fileId: string) => {
     setSelectedFiles(prev => {
       const next = new Set(prev)
-      if (next.has(fileId)) {
-        next.delete(fileId)
-      } else {
-        next.add(fileId)
-      }
+      if (next.has(fileId)) next.delete(fileId)
+      else next.add(fileId)
       return next
     })
   }
@@ -1209,7 +1159,6 @@ function DirectionDetail({
     }
   }
 
-  // Breadcrumb
   const breadcrumb = [
     { label: "Directions", onClick: onBack },
     { label: direction.name, onClick: onBackToOverview },
@@ -1219,21 +1168,19 @@ function DirectionDetail({
   ]
 
   return (
-    <div className="flex-1 flex flex-col min-w-0 bg-background">
-      {/* Sub-header */}
-      <div className="flex items-center justify-between px-5 py-3 border-b border-border bg-card gap-4">
-        {/* Breadcrumb */}
-        <nav className="flex items-center gap-1 text-sm min-w-0">
+    <div className="flex-1 flex flex-col min-w-0 bg-background h-full">
+      <div className="flex items-center justify-between px-6 py-4 border-b border-border bg-card gap-4">
+        <nav className="flex items-center gap-2 text-sm min-w-0">
           {breadcrumb.map((crumb, i) => (
-            <span key={i} className="flex items-center gap-1">
-              {i > 0 && <ChevronRight className="h-3.5 w-3.5 text-muted-foreground flex-shrink-0" />}
+            <span key={i} className="flex items-center gap-2">
+              {i > 0 && <ChevronRight className="h-4 w-4 text-muted-foreground flex-shrink-0" />}
               <button
                 onClick={crumb.onClick}
                 className={cn(
                   "truncate transition-colors",
                   i === breadcrumb.length - 1
-                    ? "font-semibold text-foreground"
-                    : "text-muted-foreground hover:text-foreground"
+                    ? "font-bold text-foreground"
+                    : "font-medium text-muted-foreground hover:text-foreground"
                 )}
               >
                 {crumb.label}
@@ -1242,33 +1189,25 @@ function DirectionDetail({
           ))}
         </nav>
 
-        {/* Actions */}
         {!selectedDossier && (
-          <div className="flex items-center gap-2 flex-shrink-0">
+          <div className="flex items-center gap-3 flex-shrink-0">
             <div className="relative">
-              <Search className="absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" />
-              <Input
-                placeholder="Rechercher..."
-                value={search}
-                onChange={e => setSearch(e.target.value)}
-                className="pl-8 h-8 w-44 text-xs bg-muted/50 border-0 rounded"
-              />
+              <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+              <Input placeholder="Rechercher..." value={search} onChange={e => setSearch(e.target.value)} className="pl-9 h-9 w-56 text-sm bg-muted/50 border-0 rounded-lg" />
             </div>
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
-                <Button className="h-8 gap-1.5 text-xs rounded">
-                  <Plus className="h-3.5 w-3.5" />
+                <Button className="h-9 gap-2 text-sm rounded-lg">
+                  <Plus className="h-4 w-4" />
                   Nouveau
                 </Button>
               </DropdownMenuTrigger>
-              <DropdownMenuContent align="end">
-                <DropdownMenuItem onClick={() => setDossierPanelOpen(true)}>
-                  <FolderPlus className="h-4 w-4 mr-2" />
-                  Nouveau Dossier
+              <DropdownMenuContent align="end" className="rounded-xl">
+                <DropdownMenuItem onClick={() => setDossierPanelOpen(true)} className="rounded-lg">
+                  <FolderPlus className="h-4 w-4 mr-2" /> Nouveau Dossier
                 </DropdownMenuItem>
-                <DropdownMenuItem onClick={() => setImportPanelOpen(true)}>
-                  <FolderUp className="h-4 w-4 mr-2" />
-                  Importer un dossier
+                <DropdownMenuItem onClick={() => setImportPanelOpen(true)} className="rounded-lg">
+                  <FolderUp className="h-4 w-4 mr-2" /> Importer un dossier
                 </DropdownMenuItem>
               </DropdownMenuContent>
             </DropdownMenu>
@@ -1276,631 +1215,52 @@ function DirectionDetail({
         )}
 
         {selectedDossier && (
-          <div className="flex items-center gap-2 flex-shrink-0">
+          <div className="flex items-center gap-3 flex-shrink-0">
             {selectedFiles.size > 0 && (
               <div className="flex items-center gap-2 mr-2">
-                <span className="text-xs text-muted-foreground">{selectedFiles.size} selectionne(s)</span>
-                <Button variant="outline" size="sm" className="h-7 text-xs gap-1">
-                  <Download className="h-3 w-3" />
-                  Telecharger
+                <span className="text-xs font-medium text-muted-foreground bg-muted px-2 py-1 rounded">{selectedFiles.size} selectionne(s)</span>
+                <Button variant="outline" size="sm" className="h-8 text-xs gap-1.5 rounded-lg">
+                  <Download className="h-3.5 w-3.5" /> Telecharger
                 </Button>
-                <Button variant="outline" size="sm" className="h-7 text-xs gap-1 text-destructive hover:text-destructive">
-                  <Trash2 className="h-3 w-3" />
-                  Supprimer
+                <Button variant="outline" size="sm" className="h-8 text-xs gap-1.5 text-destructive hover:text-destructive rounded-lg">
+                  <Trash2 className="h-3.5 w-3.5" /> Supprimer
                 </Button>
               </div>
             )}
             <div className="relative">
-              <Search className="absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" />
-              <Input
-                placeholder="Rechercher..."
-                value={search}
-                onChange={e => setSearch(e.target.value)}
-                className="pl-8 h-8 w-44 text-xs bg-muted/50 border-0 rounded"
-              />
+              <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+              <Input placeholder="Rechercher..." value={search} onChange={e => setSearch(e.target.value)} className="pl-9 h-9 w-56 text-sm bg-muted/50 border-0 rounded-lg" />
             </div>
-            <div className="flex border border-border rounded overflow-hidden">
-              <Button
-                variant="ghost"
-                size="icon"
-                className={cn("h-8 w-8 rounded-none", view === "list" && "bg-muted")}
-                onClick={() => setView("list")}
-              >
-                <List className="h-3.5 w-3.5" />
-              </Button>
-              <Button
-                variant="ghost"
-                size="icon"
-                className={cn("h-8 w-8 rounded-none", view === "grid" && "bg-muted")}
-                onClick={() => setView("grid")}
-              >
-                <LayoutGrid className="h-3.5 w-3.5" />
-              </Button>
+            <div className="flex border border-border rounded-lg overflow-hidden bg-muted/30 p-0.5">
+              <Button variant="ghost" size="icon" className={cn("h-8 w-8 rounded-md", view === "list" && "bg-background shadow-sm")} onClick={() => setView("list")}><List className="h-4 w-4" /></Button>
+              <Button variant="ghost" size="icon" className={cn("h-8 w-8 rounded-md", view === "grid" && "bg-background shadow-sm")} onClick={() => setView("grid")}><LayoutGrid className="h-4 w-4" /></Button>
             </div>
-            <Button className="h-8 gap-1.5 text-xs rounded" onClick={() => setImportPanelOpen(true)}>
-              <FilePlus className="h-3.5 w-3.5" />
-              Importer
+            <Button className="h-9 gap-1.5 text-sm rounded-lg" onClick={() => setImportPanelOpen(true)}>
+              <FilePlus className="h-4 w-4" /> Importer
             </Button>
           </div>
         )}
       </div>
 
-      {/* Content */}
-      <div className="flex-1 overflow-y-auto p-5">
+      <div className="flex-1 overflow-y-auto p-6 bg-muted/5">
         {!selectedDossier ? (
-          <DossierList
-            armoire={selectedArmoire}
-            search={search}
-            onOpen={setSelectedDossier}
-          />
+          <DossierList armoire={selectedArmoire} search={search} onOpen={setSelectedDossier} />
         ) : (
-          <FileList
-            dossier={selectedDossier}
-            search={search}
-            view={view}
-            onFileOpen={setSelectedFile}
-            selectedFiles={selectedFiles}
-            onToggleSelect={toggleFileSelection}
-            onSelectAll={selectAllFiles}
-          />
+          <FileList dossier={selectedDossier} search={search} view={view} onFileOpen={setSelectedFile} selectedFiles={selectedFiles} onToggleSelect={toggleFileSelection} onSelectAll={selectAllFiles} />
         )}
       </div>
 
-      {/* Slide panels */}
-      <DossierPanel
-        open={dossierPanelOpen}
-        onClose={() => setDossierPanelOpen(false)}
-        onSave={name => onAddDossier(direction.id, selectedArmoire.id, name)}
-      />
-      <ImportFilesPanel
-        open={importPanelOpen}
-        onClose={() => setImportPanelOpen(false)}
-        onImport={handleImportFiles}
-      />
+      <DossierPanel open={dossierPanelOpen} onClose={() => setDossierPanelOpen(false)} onSave={name => onAddDossier(direction.id, selectedArmoire.id, name)} />
+      <ImportFilesPanel open={importPanelOpen} onClose={() => setImportPanelOpen(false)} onImport={handleImportFiles} />
 
       {selectedFile && selectedDossier && (
-        <DocumentDetailPanel
-          file={selectedFile}
-          context={{
-            direction: direction.name,
-            armoire: selectedArmoire.name,
-            dossier: selectedDossier.name,
-          }}
-          onClose={() => setSelectedFile(null)}
-        />
+        <DocumentDetailPanel file={selectedFile} context={{ direction: direction.name, armoire: selectedArmoire.name, dossier: selectedDossier.name }} onClose={() => setSelectedFile(null)} />
       )}
     </div>
   )
 }
 
-// ─── Direction List Sidebar (left panel) ──────────────────────────────────────
-
-function DirectionListSidebar({
-  directions,
-  selectedDirection,
-  onSelectDirection,
-  onCreateDirection,
-}: {
-  directions: Direction[]
-  selectedDirection: Direction | null
-  onSelectDirection: (d: Direction) => void
-  onCreateDirection: () => void
-}) {
-  const [search, setSearch] = useState("")
-
-  const filtered = directions.filter(d =>
-    d.name.toLowerCase().includes(search.toLowerCase())
-  )
-
-  const countDirDocs = (dir: Direction) => {
-    const agenceDocs = dir.agences.reduce((sum, ag) =>
-      sum + ag.armoires.reduce((a, arm) => a + arm.dossiers.reduce((b, dos) => b + dos.files.length, 0), 0), 0)
-    const directDocs = dir.armoires.reduce((a, arm) => a + arm.dossiers.reduce((b, dos) => b + dos.files.length, 0), 0)
-    return agenceDocs + directDocs
-  }
-
-  const countDirAgences = (dir: Direction) => {
-    return dir.agences.length || (dir.armoires.length > 0 ? 1 : 0)
-  }
-
-  return (
-    <div className="w-72 border-r border-border flex flex-col flex-shrink-0 bg-card">
-      <div className="flex items-center justify-between px-4 py-3 border-b border-border">
-        <h2 className="text-sm font-semibold text-foreground">Directions</h2>
-        <Button variant="ghost" size="icon" className="h-7 w-7" onClick={onCreateDirection}>
-          <Plus className="h-4 w-4" />
-        </Button>
-      </div>
-
-      <div className="px-4 py-3 border-b border-border">
-        <div className="relative">
-          <Search className="absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" />
-          <Input
-            placeholder="Rechercher..."
-            value={search}
-            onChange={e => setSearch(e.target.value)}
-            className="pl-8 h-9 text-sm bg-muted/50 border-0 rounded"
-          />
-        </div>
-      </div>
-
-      <div className="flex-1 overflow-y-auto p-2">
-        {filtered.map(dir => {
-          const isActive = selectedDirection?.id === dir.id
-          const docCount = countDirDocs(dir)
-          const agenceCount = countDirAgences(dir)
-
-          return (
-            <button
-              key={dir.id}
-              onClick={() => onSelectDirection(dir)}
-              className={cn(
-                "w-full flex items-center gap-3 rounded-lg px-3 py-3 mb-1 text-left transition-colors",
-                isActive
-                  ? "bg-foreground text-background"
-                  : "hover:bg-muted"
-              )}
-            >
-              <div className={cn(
-                "h-9 w-9 rounded flex items-center justify-center flex-shrink-0",
-                isActive ? "bg-background/20" : "bg-muted"
-              )}>
-                <Building2 className="h-4 w-4" />
-              </div>
-              <div className="flex-1 min-w-0">
-                <p className="text-sm font-medium truncate">{dir.name}</p>
-                <p className={cn(
-                  "text-xs",
-                  isActive ? "text-background/70" : "text-muted-foreground"
-                )}>
-                  {docCount} docs - {agenceCount} {agenceCount <= 1 ? "agence" : "agences"}
-                </p>
-              </div>
-              <ChevronRight className={cn(
-                "h-4 w-4 flex-shrink-0",
-                isActive ? "text-background/70" : "text-muted-foreground"
-              )} />
-            </button>
-          )
-        })}
-      </div>
-    </div>
-  )
-}
-
-// ─── Old DirectionDetail for backward compat ────────────────────────────────────
-
-function OldDirectionDetail({
-  direction,
-  onBack,
-  onAddAgence,
-  onAddArmoire,
-  onAddDossier,
-}: {
-  direction: Direction
-  onBack: () => void
-  onAddAgence: (dirId: string, data: { name: string; location?: string; description?: string }) => void
-  onAddArmoire: (dirId: string, agenceId: string | null, data: { name: string; icon: string; admins: string[] }) => void
-  onAddDossier: (dirId: string, armoireId: string, name: string) => void
-}) {
-  const searchParams = useSearchParams()
-  const defaultAgence = direction.agences.length > 0
-    ? direction.agences[0]
-    : direction.armoires.length > 0
-      ? {
-          id: `ag-${direction.id}-default`,
-          name: "Agence principale",
-          location: "Siege",
-          description: "Agence principale",
-          armoires: direction.armoires,
-        }
-      : null
-  const [selectedAgence, setSelectedAgence] = useState<Agence | null>(defaultAgence)
-  const [selectedArmoire, setSelectedArmoire] = useState<Armoire | null>(
-    defaultAgence?.armoires[0] ?? null
-  )
-  const [selectedDossier, setSelectedDossier] = useState<Dossier | null>(null)
-  const [selectedFile, setSelectedFile] = useState<DocFile | null>(null)
-  const [search, setSearch] = useState("")
-  const [view, setView] = useState<"list" | "grid">("list")
-  const [agencePanelOpen, setAgencePanelOpen] = useState(false)
-  const [armoirePanelOpen, setArmoirePanelOpen] = useState(false)
-  const [dossierPanelOpen, setDossierPanelOpen] = useState(false)
-  const [importPanelOpen, setImportPanelOpen] = useState(false)
-  const [selectedFiles, setSelectedFiles] = useState<Set<string>>(new Set())
-
-  useEffect(() => {
-    const selectedAgenceId = selectedAgence?.id
-    const selectedArmoireId = selectedArmoire?.id
-    const selectedDossierId = selectedDossier?.id
-
-    let nextAgence: Agence | null = null
-    let nextArmoire: Armoire | null = null
-    let nextDossier: Dossier | null = null
-
-    if (direction.agences.length > 0) {
-      nextAgence = selectedAgenceId
-        ? direction.agences.find(ag => ag.id === selectedAgenceId) ?? direction.agences[0]
-        : direction.agences[0]
-    } else if (direction.armoires.length > 0) {
-      nextAgence = {
-        id: `ag-${direction.id}-default`,
-        name: "Agence principale",
-        location: "Siege",
-        description: "Agence principale",
-        armoires: direction.armoires,
-      }
-    }
-
-    if (nextAgence) {
-      nextArmoire = selectedArmoireId
-        ? nextAgence.armoires.find(a => a.id === selectedArmoireId) ?? nextAgence.armoires[0] ?? null
-        : nextAgence.armoires[0] ?? null
-    }
-
-    if (nextArmoire) {
-      nextDossier = selectedDossierId
-        ? nextArmoire.dossiers.find(dos => dos.id === selectedDossierId) ?? null
-        : null
-    }
-
-    setSelectedAgence(nextAgence)
-    setSelectedArmoire(nextArmoire)
-    setSelectedDossier(nextDossier)
-    setSearch("")
-    setSelectedFiles(new Set())
-  }, [direction])
-
-  // Auto-select armoire from query params
-  useEffect(() => {
-    const armoireParam = searchParams.get('armoire')
-    if (armoireParam && selectedAgence?.armoires.length) {
-      const armoire = selectedAgence.armoires.find(a => a.name.toLowerCase().includes(armoireParam.toLowerCase()))
-      if (armoire) {
-        setSelectedArmoire(armoire)
-        setSelectedDossier(null)
-        setSearch("")
-      }
-    }
-  }, [searchParams, selectedAgence])
-
-  // When armoire changes, reset dossier
-  const handleSelectArmoire = (arm: Armoire) => {
-    setSelectedArmoire(arm)
-    setSelectedDossier(null)
-    setSearch("")
-    setSelectedFiles(new Set())
-  }
-
-  const handleSelectAgence = (agence: Agence) => {
-    setSelectedAgence(agence)
-    setSelectedArmoire(agence.armoires[0] ?? null)
-    setSelectedDossier(null)
-    setSearch("")
-    setSelectedFiles(new Set())
-  }
-
-  const handleImportFiles = (pendingFiles: { file: File; source: "upload" | "scan" }[]) => {
-    if (!selectedArmoire) return
-
-    let targetDossier = selectedDossier
-    if (!targetDossier) {
-      targetDossier = store.addDossier(direction.id, selectedArmoire.id, "Documents importes")
-      setSelectedDossier(targetDossier)
-    }
-
-    store.addDocuments(
-      direction.id,
-      selectedArmoire.id,
-      targetDossier.id,
-      pendingFiles
-    )
-  }
-
-  const toggleFileSelection = (fileId: string) => {
-    setSelectedFiles(prev => {
-      const next = new Set(prev)
-      if (next.has(fileId)) {
-        next.delete(fileId)
-      } else {
-        next.add(fileId)
-      }
-      return next
-    })
-  }
-
-  const selectAllFiles = () => {
-    if (!selectedDossier) return
-    if (selectedFiles.size === selectedDossier.files.length) {
-      setSelectedFiles(new Set())
-    } else {
-      setSelectedFiles(new Set(selectedDossier.files.map(f => f.id)))
-    }
-  }
-
-  // Breadcrumb
-  const breadcrumb = [
-    { label: "Directions", onClick: onBack },
-    { label: direction.name, onClick: () => { setSelectedDossier(null) } },
-    ...(selectedAgence ? [{ label: selectedAgence.name, onClick: () => { setSelectedDossier(null) } }] : []),
-    ...(selectedArmoire ? [{ label: selectedArmoire.name, onClick: () => setSelectedDossier(null) }] : []),
-    ...(selectedDossier ? [{ label: selectedDossier.name, onClick: () => {} }] : []),
-  ]
-
-  return (
-    <div className="flex h-[calc(100vh-56px)]">
-      {/* Left: Armoires list */}
-      <div className="w-56 border-r border-border flex flex-col flex-shrink-0 bg-card">
-        <div className="flex items-center justify-between px-4 py-3 border-b border-border">
-          <button
-            onClick={onBack}
-            className="flex items-center gap-1.5 text-xs text-muted-foreground hover:text-foreground transition-colors"
-          >
-            <ArrowLeft className="h-3.5 w-3.5" />
-            Retour
-          </button>
-          <div className="flex items-center gap-1">
-            <Button
-              variant="ghost"
-              size="icon"
-              className="h-6 w-6 text-muted-foreground hover:text-foreground"
-              onClick={() => setAgencePanelOpen(true)}
-            >
-              <Building2 className="h-3.5 w-3.5" />
-            </Button>
-            <Button
-              variant="ghost"
-              size="icon"
-              className="h-6 w-6 text-muted-foreground hover:text-foreground"
-              onClick={() => setArmoirePanelOpen(true)}
-            >
-              <Plus className="h-3.5 w-3.5" />
-            </Button>
-          </div>
-        </div>
-
-        <div className="flex-1 overflow-y-auto py-2">
-          {(!direction.agences || direction.agences.length === 0) ? (
-            <div className="space-y-4 px-4 py-6">
-              <p className="text-xs text-muted-foreground">Aucune agence definie pour cette direction.</p>
-              <Button className="w-full h-9 text-sm" onClick={() => setAgencePanelOpen(true)}>
-                Ajouter une agence
-              </Button>
-            </div>
-          ) : (
-            <>
-              <div className="px-4 pb-3 border-b border-border">
-                <p className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground mb-2">Agences</p>
-                {direction.agences.map(ag => {
-                  const isActive = selectedAgence?.id === ag.id
-                  return (
-                    <button
-                      key={ag.id}
-                      onClick={() => handleSelectAgence(ag)}
-                      className={cn(
-                        "w-full text-left rounded px-3 py-2 mb-2 transition-colors text-sm",
-                        isActive
-                          ? "bg-muted text-foreground font-medium"
-                          : "text-muted-foreground hover:bg-muted/50 hover:text-foreground"
-                      )}
-                    >
-                      <div className="flex items-center justify-between gap-2">
-                        <div>
-                          <p className="truncate">{ag.name}</p>
-                          {ag.location && <p className="text-[11px] text-muted-foreground">{ag.location}</p>}
-                        </div>
-                        <span className="text-[11px] text-muted-foreground">{ag.armoires.length}</span>
-                      </div>
-                    </button>
-                  )
-                })}
-              </div>
-              <div className="px-4 py-4">
-                <p className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground mb-2">Armoires</p>
-                {selectedAgence && selectedAgence.armoires.length === 0 ? (
-                  <p className="text-xs text-muted-foreground">Aucune armoire pour cette agence.</p>
-                ) : (
-                  selectedAgence?.armoires.map(arm => {
-                    const isActive = selectedArmoire?.id === arm.id
-                    const IconComp = getIconComponent(arm.icon || "archive")
-                    return (
-                      <button
-                        key={arm.id}
-                        onClick={() => handleSelectArmoire(arm)}
-                        className={cn(
-                          "w-full flex items-center gap-2.5 px-4 py-2.5 text-left transition-colors text-sm",
-                          isActive
-                            ? "bg-muted text-foreground font-medium"
-                            : "text-muted-foreground hover:bg-muted/50 hover:text-foreground"
-                        )}
-                      >
-                        {isActive
-                          ? <FolderOpen className="h-4 w-4 flex-shrink-0 text-foreground" />
-                          : <IconComp className="h-4 w-4 flex-shrink-0" />
-                        }
-                        <span className="flex-1 truncate">{arm.name}</span>
-                      </button>
-                    )
-                  })
-                )}
-              </div>
-            </>
-          )}
-        </div>
-      </div>
-
-      {/* Right: content area */}
-      <div className="flex-1 flex flex-col min-w-0 bg-background">
-        {/* Sub-header */}
-        <div className="flex items-center justify-between px-5 py-3 border-b border-border bg-card gap-4">
-          {/* Breadcrumb */}
-          <nav className="flex items-center gap-1 text-sm min-w-0">
-            {breadcrumb.map((crumb, i) => (
-              <span key={i} className="flex items-center gap-1">
-                {i > 0 && <ChevronRight className="h-3.5 w-3.5 text-muted-foreground flex-shrink-0" />}
-                <button
-                  onClick={crumb.onClick}
-                  className={cn(
-                    "truncate transition-colors",
-                    i === breadcrumb.length - 1
-                      ? "font-semibold text-foreground"
-                      : "text-muted-foreground hover:text-foreground"
-                  )}
-                >
-                  {crumb.label}
-                </button>
-              </span>
-            ))}
-          </nav>
-
-          {/* Actions */}
-          {selectedArmoire && !selectedDossier && (
-            <div className="flex items-center gap-2 flex-shrink-0">
-              <div className="relative">
-                <Search className="absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" />
-                <Input
-                  placeholder="Rechercher..."
-                  value={search}
-                  onChange={e => setSearch(e.target.value)}
-                  className="pl-8 h-8 w-44 text-xs bg-muted/50 border-0 rounded"
-                />
-              </div>
-              <DropdownMenu>
-                <DropdownMenuTrigger asChild>
-                  <Button className="h-8 gap-1.5 text-xs rounded">
-                    <Plus className="h-3.5 w-3.5" />
-                    Nouveau
-                  </Button>
-                </DropdownMenuTrigger>
-                <DropdownMenuContent align="end">
-                  <DropdownMenuItem onClick={() => setDossierPanelOpen(true)}>
-                    <FolderPlus className="h-4 w-4 mr-2" />
-                    Nouveau Dossier
-                  </DropdownMenuItem>
-                  <DropdownMenuItem onClick={() => setImportPanelOpen(true)}>
-                    <FolderUp className="h-4 w-4 mr-2" />
-                    Importer un dossier
-                  </DropdownMenuItem>
-                </DropdownMenuContent>
-              </DropdownMenu>
-            </div>
-          )}
-
-          {selectedDossier && (
-            <div className="flex items-center gap-2 flex-shrink-0">
-              {selectedFiles.size > 0 && (
-                <div className="flex items-center gap-2 mr-2">
-                  <span className="text-xs text-muted-foreground">{selectedFiles.size} selectionne(s)</span>
-                  <Button variant="outline" size="sm" className="h-7 text-xs gap-1">
-                    <Download className="h-3 w-3" />
-                    Telecharger
-                  </Button>
-                  <Button variant="outline" size="sm" className="h-7 text-xs gap-1 text-destructive hover:text-destructive">
-                    <Trash2 className="h-3 w-3" />
-                    Supprimer
-                  </Button>
-                </div>
-              )}
-              <div className="relative">
-                <Search className="absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" />
-                <Input
-                  placeholder="Rechercher..."
-                  value={search}
-                  onChange={e => setSearch(e.target.value)}
-                  className="pl-8 h-8 w-44 text-xs bg-muted/50 border-0 rounded"
-                />
-              </div>
-              <div className="flex border border-border rounded overflow-hidden">
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  className={cn("h-8 w-8 rounded-none", view === "list" && "bg-muted")}
-                  onClick={() => setView("list")}
-                >
-                  <List className="h-3.5 w-3.5" />
-                </Button>
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  className={cn("h-8 w-8 rounded-none", view === "grid" && "bg-muted")}
-                  onClick={() => setView("grid")}
-                >
-                  <LayoutGrid className="h-3.5 w-3.5" />
-                </Button>
-              </div>
-              <Button className="h-8 gap-1.5 text-xs rounded" onClick={() => setImportPanelOpen(true)}>
-                <FilePlus className="h-3.5 w-3.5" />
-                Importer
-              </Button>
-            </div>
-          )}
-        </div>
-
-        {/* Content */}
-        <div className="flex-1 overflow-y-auto p-5">
-          {!selectedArmoire ? (
-            <div className="flex flex-col items-center justify-center h-full text-muted-foreground">
-              <Archive className="h-10 w-10 mb-3 opacity-30" />
-              <p className="text-sm">Selectionnez une armoire</p>
-            </div>
-          ) : !selectedDossier ? (
-            <DossierList
-              armoire={selectedArmoire}
-              search={search}
-              onOpen={setSelectedDossier}
-            />
-          ) : (
-            <FileList
-              dossier={selectedDossier}
-              search={search}
-              view={view}
-              onFileOpen={setSelectedFile}
-              selectedFiles={selectedFiles}
-              onToggleSelect={toggleFileSelection}
-              onSelectAll={selectAllFiles}
-            />
-          )}
-        </div>
-      </div>
-
-      {/* Slide panels */}
-      <AgencePanel
-        open={agencePanelOpen}
-        onClose={() => setAgencePanelOpen(false)}
-        onSave={data => onAddAgence(direction.id, data)}
-      />
-      <ArmoirePanel
-        open={armoirePanelOpen}
-        onClose={() => setArmoirePanelOpen(false)}
-        onSave={data => onAddArmoire(direction.id, selectedAgence?.id ?? null, data)}
-      />
-      <DossierPanel
-        open={dossierPanelOpen}
-        onClose={() => setDossierPanelOpen(false)}
-        onSave={name => selectedArmoire && onAddDossier(direction.id, selectedArmoire.id, name)}
-      />
-      <ImportFilesPanel
-        open={importPanelOpen}
-        onClose={() => setImportPanelOpen(false)}
-        onImport={handleImportFiles}
-      />
-
-      {selectedFile && selectedDossier && selectedArmoire && (
-        <DocumentDetailPanel
-          file={selectedFile}
-          context={{
-            direction: direction.name,
-            armoire: selectedArmoire.name,
-            dossier: selectedDossier.name,
-          }}
-          onClose={() => setSelectedFile(null)}
-        />
-      )}
-    </div>
-  )
-}
-
-// ─── Dossier list ─────────────────────────────────────────────────────────────
+// ─── Root export ──────────────────────────────────────────────────────────────
 
 function DossierList({
   armoire,
@@ -1970,7 +1330,7 @@ function DossierList({
   )
 }
 
-// ─── File list ────────────────────────────────────────────────────────────────
+// ��������� File list ������������������������������������������������������������������������������������������������������������������������������������������������������������������������������������������������
 
 function FileList({
   dossier,
@@ -2129,10 +1489,9 @@ function FileList({
   )
 }
 
-// ─── Root export ──────────────────────────────────────────────────────────────
 
 type ViewState =
-  | { type: "overview"; direction: Direction }
+  | { type: "overview"; direction: Direction; agence: Agence }
   | { type: "armoire"; direction: Direction; agence: Agence; armoire: Armoire }
 
 export function DirectionView() {
@@ -2141,35 +1500,28 @@ export function DirectionView() {
   const [selectedDirection, setSelectedDirection] = useState<Direction | null>(null)
   const [viewState, setViewState] = useState<ViewState | null>(null)
   const [createPanelOpen, setCreatePanelOpen] = useState(false)
+  const [createAgencePanelOpen, setCreateAgencePanelOpen] = useState(false)
 
   useEffect(() => {
     setDirections(store.getDirections())
     return store.subscribe(() => {
       const dirs = store.getDirections()
       setDirections(dirs)
-      // Refresh selected direction if it changed
       if (selectedDirection) {
         const updated = dirs.find(d => d.id === selectedDirection.id)
         if (updated) {
           setSelectedDirection(updated)
-          // Also refresh view state
           if (viewState) {
             if (viewState.type === "overview") {
-              setViewState({ type: "overview", direction: updated })
+              const agence = updated.agences.find(ag => ag.id === viewState.agence.id) ||
+                (updated.armoires.length > 0 ? { id: `ag-${updated.id}-default`, name: "Agence Principale", location: "Siege", description: "Agence principale", armoires: updated.armoires } : null)
+              if (agence) setViewState({ type: "overview", direction: updated, agence })
             } else if (viewState.type === "armoire") {
               const agence = updated.agences.find(ag => ag.id === viewState.agence.id) ||
-                (updated.armoires.length > 0 ? {
-                  id: `ag-${updated.id}-default`,
-                  name: "Agence Principale",
-                  location: "Siege",
-                  description: "Agence principale",
-                  armoires: updated.armoires,
-                } : null)
+                (updated.armoires.length > 0 ? { id: `ag-${updated.id}-default`, name: "Agence Principale", location: "Siege", description: "Agence principale", armoires: updated.armoires } : null)
               if (agence) {
                 const armoire = agence.armoires.find(a => a.id === viewState.armoire.id)
-                if (armoire) {
-                  setViewState({ type: "armoire", direction: updated, agence, armoire })
-                }
+                if (armoire) setViewState({ type: "armoire", direction: updated, agence, armoire })
               }
             }
           }
@@ -2178,41 +1530,34 @@ export function DirectionView() {
     })
   }, [selectedDirection, viewState])
 
-  // Handle query parameters to auto-open direction
   useEffect(() => {
     const directionParam = searchParams.get('direction')
-    if (directionParam && directions.length > 0) {
+    if (directionParam && directions.length > 0 && !selectedDirection) {
       const direction = directions.find(d => d.name.toLowerCase().includes(directionParam.toLowerCase()))
-      if (direction && !selectedDirection) {
+      if (direction) {
         setSelectedDirection(direction)
-        setViewState({ type: "overview", direction })
+        const agence = direction.agences[0] || (direction.armoires.length > 0 ? { id: `ag-${direction.id}-default`, name: "Agence Principale", location: "Siege", description: "Agence principale", armoires: direction.armoires } : null)
+        if (agence) setViewState({ type: "overview", direction, agence })
       }
     }
   }, [searchParams, directions, selectedDirection])
-
-  // Auto-select first direction if none selected
-  useEffect(() => {
-    if (directions.length > 0 && !selectedDirection) {
-      setSelectedDirection(directions[0])
-      setViewState({ type: "overview", direction: directions[0] })
-    }
-  }, [directions, selectedDirection])
 
   const handleCreate = (data: { name: string; description: string; directeur: string }) => {
     store.addDirection(data.name)
     const dirs = store.getDirections()
     const newDir = dirs.find(d => d.name === data.name)
     if (newDir) {
-      if (data.description) {
-        store.updateDirection(newDir.id, { description: data.description })
+      if (data.description || data.directeur) {
+        store.updateDirection(newDir.id, { description: data.description, directeur: data.directeur } as any)
       }
       setSelectedDirection(newDir)
-      setViewState({ type: "overview", direction: newDir })
+      const agence = newDir.agences[0] || (newDir.armoires.length > 0 ? { id: `ag-${newDir.id}-default`, name: "Agence Principale", location: "Siege", description: "Agence principale", armoires: newDir.armoires } : null)
+      if (agence) setViewState({ type: "overview", direction: newDir, agence })
     }
   }
 
   const handleEdit = (dir: Direction, data: { name: string; description: string; directeur: string }) => {
-    store.updateDirection(dir.id, { name: data.name, description: data.description })
+    store.updateDirection(dir.id, { name: data.name, description: data.description, directeur: data.directeur } as any)
   }
 
   const handleAddAgence = (dirId: string, data: { name: string; location?: string; description?: string }) => {
@@ -2229,7 +1574,20 @@ export function DirectionView() {
 
   const handleSelectDirection = (dir: Direction) => {
     setSelectedDirection(dir)
-    setViewState({ type: "overview", direction: dir })
+    const agence = dir.agences[0] || (dir.armoires.length > 0 ? { id: `ag-${dir.id}-default`, name: "Agence Principale", location: "Siege", description: "Agence principale", armoires: dir.armoires } : null)
+    if (agence) {
+      setViewState({ type: "overview", direction: dir, agence })
+    } else {
+      // If no agences at all, create a dummy state so they can add an agence
+      const dummyAgence: Agence = { id: `ag-${dir.id}-default`, name: "Nouvelle Agence", location: "", description: "", armoires: [] }
+      setViewState({ type: "overview", direction: dir, agence: dummyAgence })
+    }
+  }
+
+  const handleSelectAgence = (agence: Agence) => {
+    if (selectedDirection) {
+      setViewState({ type: "overview", direction: selectedDirection, agence })
+    }
   }
 
   const handleOpenArmoire = (agence: Agence, armoire: Armoire) => {
@@ -2244,34 +1602,44 @@ export function DirectionView() {
   }
 
   const handleBackToOverview = () => {
-    if (selectedDirection) {
-      setViewState({ type: "overview", direction: selectedDirection })
+    if (selectedDirection && viewState) {
+      setViewState({ type: "overview", direction: selectedDirection, agence: viewState.agence })
     }
   }
 
   return (
-    <div className="flex h-[calc(100vh-56px)]">
-      {/* Left sidebar: Directions list */}
-      <DirectionListSidebar
-        directions={directions}
-        selectedDirection={selectedDirection}
-        onSelectDirection={handleSelectDirection}
-        onCreateDirection={() => setCreatePanelOpen(true)}
-      />
-
-      {/* Right content area */}
-      {viewState?.type === "overview" && selectedDirection && (
-        <DirectionOverview
+    <div className="flex h-[calc(100vh-56px)] bg-muted/10">
+      {/* Sidebar for Agences shown only when a Direction is selected */}
+      {viewState && selectedDirection && (
+        <AgenceSidebar
           direction={selectedDirection}
+          selectedAgence={viewState.agence}
+          onSelectAgence={handleSelectAgence}
+          onAddAgence={() => setCreateAgencePanelOpen(true)}
           onBack={handleBackToList}
-          onAddAgence={handleAddAgence}
-          onAddArmoire={handleAddArmoire}
-          onOpenArmoire={handleOpenArmoire}
-          onEditDirection={handleEdit}
         />
       )}
 
-      {viewState?.type === "armoire" && selectedDirection && (
+      {/* Main content area */}
+      {!viewState ? (
+        <div className="flex-1 overflow-y-auto">
+          <DirectionGrid
+            directions={directions}
+            onOpen={handleSelectDirection}
+            onCreate={() => setCreatePanelOpen(true)}
+            onEdit={handleEdit}
+            onDelete={store.deleteDirection.bind(store)}
+            onCreateAgence={handleAddAgence}
+          />
+        </div>
+      ) : viewState.type === "overview" && selectedDirection ? (
+        <AgenceOverview
+          agence={viewState.agence}
+          direction={selectedDirection}
+          onAddArmoire={handleAddArmoire}
+          onOpenArmoire={handleOpenArmoire}
+        />
+      ) : viewState.type === "armoire" && selectedDirection ? (
         <DirectionDetail
           direction={selectedDirection}
           selectedAgence={viewState.agence}
@@ -2280,23 +1648,21 @@ export function DirectionView() {
           onBackToOverview={handleBackToOverview}
           onAddDossier={handleAddDossier}
         />
-      )}
+      ) : null}
 
-      {!viewState && (
-        <div className="flex-1 flex items-center justify-center bg-background">
-          <div className="text-center">
-            <Building2 className="h-12 w-12 mx-auto text-muted-foreground/30 mb-4" />
-            <p className="text-sm text-muted-foreground">Selectionnez une direction</p>
-          </div>
-        </div>
-      )}
-
-      {/* Create direction panel */}
+      {/* Panels */}
       <DirectionPanel
         open={createPanelOpen}
         onClose={() => setCreatePanelOpen(false)}
         onSave={handleCreate}
       />
+      {selectedDirection && (
+        <AgencePanel
+          open={createAgencePanelOpen}
+          onClose={() => setCreateAgencePanelOpen(false)}
+          onSave={data => handleAddAgence(selectedDirection.id, data)}
+        />
+      )}
     </div>
   )
 }

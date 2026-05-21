@@ -175,7 +175,7 @@ export function UploadZone() {
               <Button
                 type="button"
                 variant="outline"
-                className="gap-2 rounded-full px-5 h-10"
+                className="gap-2 ml-2 rounded-full px-5 h-10"
                 onClick={(e) => {
                   e.stopPropagation()
                   setScannerOpen(true)
