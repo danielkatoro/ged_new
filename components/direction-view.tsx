@@ -10,7 +10,7 @@ import {
   Trash2, Pencil, Search, LayoutGrid, List, ArrowLeft,
   File, FileSpreadsheet, Image, Upload, Users, Check,
   FolderPlus, FilePlus, FolderUp, FileUp, CheckSquare, Square,
-  Eye,
+  Eye, Camera, RotateCcw,
 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -451,37 +451,43 @@ function CameraScannerModal({
 }) {
   const videoRef = useRef<HTMLVideoElement>(null)
   const canvasRef = useRef<HTMLCanvasElement>(null)
-  const [stream, setStream] = useState<MediaStream | null>(null)
+  // Use a ref for the stream so stop/start helpers always see the latest value
+  const streamRef = useRef<MediaStream | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [isLoading, setIsLoading] = useState(false)
   const [capturedImage, setCapturedImage] = useState<string | null>(null)
   const [facingMode, setFacingMode] = useState<"user" | "environment">("environment")
 
-  const startCamera = useCallback(async () => {
+  const stopCamera = useCallback(() => {
+    if (streamRef.current) {
+      streamRef.current.getTracks().forEach(track => track.stop())
+      streamRef.current = null
+    }
+    if (videoRef.current) {
+      videoRef.current.srcObject = null
+    }
+  }, [])
+
+  const startCamera = useCallback(async (mode: "user" | "environment") => {
+    stopCamera()
     setIsLoading(true)
     setError(null)
-    
-    // Stop any existing stream first
-    if (stream) {
-      stream.getTracks().forEach(track => track.stop())
-    }
 
     try {
       const mediaStream = await navigator.mediaDevices.getUserMedia({
         video: {
-          facingMode: facingMode,
+          facingMode: mode,
           width: { ideal: 1920 },
           height: { ideal: 1080 },
         },
         audio: false,
       })
-      
-      setStream(mediaStream)
+
+      streamRef.current = mediaStream
       if (videoRef.current) {
         videoRef.current.srcObject = mediaStream
       }
     } catch (err) {
-      console.error("Camera access error:", err)
       if (err instanceof Error) {
         if (err.name === "NotAllowedError") {
           setError("Acces a la camera refuse. Veuillez autoriser l'acces dans les parametres de votre navigateur.")
@@ -494,36 +500,26 @@ function CameraScannerModal({
     } finally {
       setIsLoading(false)
     }
-  }, [facingMode, stream])
+  }, [stopCamera])
 
-  const stopCamera = useCallback(() => {
-    if (stream) {
-      stream.getTracks().forEach(track => track.stop())
-      setStream(null)
-    }
-    if (videoRef.current) {
-      videoRef.current.srcObject = null
-    }
-  }, [stream])
-
+  // Start/stop camera when modal opens or closes
   useEffect(() => {
     if (open) {
-      startCamera()
+      startCamera(facingMode)
     } else {
       stopCamera()
       setCapturedImage(null)
       setError(null)
     }
-    
     return () => {
       stopCamera()
     }
   }, [open])
 
-  // Restart camera when facing mode changes
+  // Restart camera when facing mode changes (only while live, not after capture)
   useEffect(() => {
     if (open && !capturedImage) {
-      startCamera()
+      startCamera(facingMode)
     }
   }, [facingMode])
 
@@ -553,7 +549,7 @@ function CameraScannerModal({
 
   const retakePhoto = () => {
     setCapturedImage(null)
-    startCamera()
+    startCamera(facingMode)
   }
 
   const confirmCapture = () => {
