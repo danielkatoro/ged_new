@@ -10,7 +10,7 @@ import {
   Trash2, Pencil, Search, LayoutGrid, List, ArrowLeft,
   File, FileSpreadsheet, Image, Upload, Users, Check,
   FolderPlus, FilePlus, FolderUp, FileUp, CheckSquare, Square,
-  Eye, Camera, RotateCcw,
+  Eye, Camera, RotateCcw, MapPin,
 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -639,12 +639,11 @@ function DirectionGrid({
 }: {
   directions: Direction[]
   onOpen: (d: Direction) => void
-  onCreate: (data: { name: string; description: string; directeur: string }) => void
+  onCreate: () => void
   onEdit: (d: Direction, data: { name: string; description: string; directeur: string }) => void
   onDelete: (id: string) => void
   onCreateAgence: (directionId: string, data: { name: string; location?: string; description?: string }) => void
 }) {
-  const [panelOpen, setPanelOpen] = useState(false)
   const [editTarget, setEditTarget] = useState<Direction | null>(null)
   const [agencyTarget, setAgencyTarget] = useState<Direction | null>(null)
   const [search, setSearch] = useState("")
@@ -703,7 +702,7 @@ function DirectionGrid({
           </div>
         </div>
         <div className="flex items-center gap-2">
-          <Button className="h-10 gap-2 text-sm bg-black text-white hover:bg-black/90 rounded-lg" onClick={() => setPanelOpen(true)}>
+          <Button className="h-10 gap-2 text-sm bg-black text-white hover:bg-black/90 rounded-lg" onClick={onCreate}>
             <Plus className="h-4 w-4" />
             Nouvelle direction
           </Button>
@@ -846,7 +845,6 @@ function DirectionGrid({
         </div>
       )}
 
-      <DirectionPanel open={panelOpen} onClose={() => setPanelOpen(false)} onSave={onCreate} />
       <AgencePanel open={!!agencyTarget} onClose={() => setAgencyTarget(null)} onSave={data => { if (agencyTarget) { onCreateAgence(agencyTarget.id, data); setAgencyTarget(null); } }} />
       <DirectionPanel open={!!editTarget} onClose={() => setEditTarget(null)} direction={editTarget} onSave={data => { if (editTarget) { onEdit(editTarget, data); setEditTarget(null); } }} />
     </div>
@@ -935,10 +933,11 @@ function AgenceSidebar({
                 <p className={cn("text-sm font-semibold truncate", isActive ? "text-white" : "text-foreground")}>{ag.name}</p>
                 {ag.location && (
                   <p className={cn(
-                    "text-[11px] mt-0.5",
+                    "text-[11px] mt-0.5 flex items-center gap-1",
                     isActive ? "text-white/70" : "text-muted-foreground"
                   )}>
-                    Adresse icon: {ag.location}
+                    <MapPin className="h-3 w-3" />
+                    {ag.location}
                   </p>
                 )}
               </div>
@@ -1554,6 +1553,7 @@ export function DirectionView() {
       const agence = newDir.agences[0] || (newDir.armoires.length > 0 ? { id: `ag-${newDir.id}-default`, name: "Agence Principale", location: "Siege", description: "Agence principale", armoires: newDir.armoires } : null)
       if (agence) setViewState({ type: "overview", direction: newDir, agence })
     }
+    setCreatePanelOpen(false)
   }
 
   const handleEdit = (dir: Direction, data: { name: string; description: string; directeur: string }) => {
