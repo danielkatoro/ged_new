@@ -198,7 +198,7 @@ export default function WorkflowDetailPage() {
               <p className="text-xs text-muted-foreground mb-3">
                 {workflow.description}
               </p>
-              <Button
+              {/* <Button
                 size="sm"
                 variant="outline"
                 className="h-8 rounded-md text-xs gap-1.5 border-border shadow-xs bg-background text-foreground hover:bg-muted"
@@ -206,7 +206,7 @@ export default function WorkflowDetailPage() {
               >
                 <ExternalLink className="h-3 w-3 text-muted-foreground" />
                 Ouvrir dans ERP
-              </Button>
+              </Button> */}
             </div>
           </div>
           <Badge className={cn("gap-1 text-[11px] rounded-md px-2 py-0.5 font-medium shadow-none self-end sm:self-auto", config.className)}>
