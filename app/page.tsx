@@ -4,7 +4,6 @@ import { StatsCards } from "@/components/stats-cards"
 import { UploadZone } from "@/components/upload-zone"
 import { DocumentsTable } from "@/components/documents-table"
 import { CabinetsPanel } from "@/components/cabinets-panel"
-import { PendingPanel } from "@/components/pending-panel"
 import { UploadDrawer } from "@/components/upload-drawer"
 
 export default function DashboardPage() {
@@ -13,14 +12,13 @@ export default function DashboardPage() {
       <Header />
       <main className="p-4 space-y-4">
         <StatsCards />
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
-          <div className="lg:col-span-2 space-y-4">
-            <UploadZone />
+        <UploadZone />
+        <div className="grid grid-cols-1 lg:grid-cols-4 gap-4">
+          <div className="lg:col-span-3">
             <DocumentsTable />
           </div>
-          <div className="space-y-4">
+          <div>
             <CabinetsPanel />
-            <PendingPanel />
           </div>
         </div>
       </main>

@@ -170,7 +170,7 @@ export function UploadZone() {
                 }}
               >
                 <FileUp className="h-4 w-4" />
-                Choisir des fichiers
+                Téléverser un document
               </Button>
               <Button
                 type="button"

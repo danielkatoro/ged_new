@@ -40,6 +40,8 @@ interface WorkflowData {
   deadline: string
   escalade: boolean
   documents: WorkflowDocument[]
+  referenceCode?: string
+  erpUrl?: string
 }
 
 const fileIconMap: Record<string, React.ElementType> = {
@@ -69,6 +71,8 @@ const workflowsData: Record<string, WorkflowData> = {
     lastActivity: "Il y a 30min",
     deadline: "Dans 48h",
     escalade: true,
+    referenceCode: "AKIENI-2026-7VSEU4",
+    erpUrl: "https://erp.example.com/workflow/1",
     documents: [
       { id: "d1", name: "Facture_Orange_Avr2026.pdf", type: "pdf", atStep: 1, uploadedAt: "22 mai 2026" },
       { id: "d2", name: "Facture_MTN_Mar2026.pdf", type: "pdf", atStep: 1, uploadedAt: "22 mai 2026" },
@@ -89,6 +93,8 @@ const workflowsData: Record<string, WorkflowData> = {
     lastActivity: "Il y a 2h",
     deadline: "Dans 3j",
     escalade: false,
+    referenceCode: "AKIENI-2026-CDI01",
+    erpUrl: "https://erp.example.com/workflow/2",
     documents: [
       { id: "d1", name: "CDI_Jean_Marc_Boka.docx", type: "docx", atStep: 1, uploadedAt: "21 mai 2026" },
     ],
@@ -103,6 +109,8 @@ const workflowsData: Record<string, WorkflowData> = {
     lastActivity: "Il y a 4h",
     deadline: "Dans 5j",
     escalade: false,
+    referenceCode: "AKIENI-2026-NDA01",
+    erpUrl: "https://erp.example.com/workflow/3",
     documents: [
       { id: "d1", name: "NDA_Partenaire_X.pdf", type: "pdf", atStep: 1, uploadedAt: "21 mai 2026" },
       { id: "d2", name: "NDA_Partenaire_Y.pdf", type: "pdf", atStep: 1, uploadedAt: "21 mai 2026" },
@@ -119,6 +127,8 @@ const workflowsData: Record<string, WorkflowData> = {
     lastActivity: "Il y a 1j",
     deadline: "Terminé",
     escalade: false,
+    referenceCode: "AKIENI-2026-RHA01",
+    erpUrl: "https://erp.example.com/workflow/4",
     documents: [
       { id: "d1", name: "Dossier_RH_Janvier.pdf", type: "pdf", atStep: 2, uploadedAt: "15 mai 2026" },
       { id: "d2", name: "Dossier_RH_Fevrier.pdf", type: "pdf", atStep: 2, uploadedAt: "15 mai 2026" },
@@ -129,9 +139,9 @@ const workflowsData: Record<string, WorkflowData> = {
 }
 
 const statusConfig = {
-  active: { label: "En cours", icon: Clock, className: "bg-neutral-900 text-white" },
-  completed: { label: "Terminé", icon: CheckCircle2, className: "bg-neutral-100 text-neutral-600" },
-  pending: { label: "En attente", icon: AlertCircle, className: "bg-amber-100 text-amber-800" },
+  active: { label: "En cours", icon: Clock, className: "bg-foreground text-background dark:bg-white dark:text-black" },
+  completed: { label: "Terminé", icon: CheckCircle2, className: "bg-muted text-muted-foreground" },
+  pending: { label: "En attente", icon: AlertCircle, className: "bg-amber-100/80 text-amber-900 dark:bg-amber-900/40 dark:text-amber-200" },
 }
 
 export default function WorkflowDetailPage() {
@@ -164,25 +174,25 @@ export default function WorkflowDetailPage() {
   return (
     <Shell>
       <Header />
-      <main className="p-6 space-y-6 max-w-5xl mx-auto">
+      <main className="p-6 space-y-6 bg-background">
         {/* Top Navigation & Brand Header */}
-        <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-4 border-b pb-5">
+        <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-4 border-b pb-5 border-border">
           <div className="flex items-start gap-3 min-w-0">
             <Button
               variant="outline"
               size="icon"
-              className="h-8 w-8 rounded-lg border-neutral-200 shadow-xs flex-shrink-0 mt-1"
+              className="h-8 w-8 rounded-lg border-border shadow-xs flex-shrink-0 mt-1"
               onClick={() => router.back()}
             >
-              <ArrowLeft className="h-4 w-4 text-neutral-600" />
+              <ArrowLeft className="h-4 w-4 text-muted-foreground" />
             </Button>
             <div className="min-w-0">
               <div className="flex flex-wrap items-center gap-2 mb-1.5">
-                <h1 className="text-xl font-bold text-neutral-900 tracking-tight">
+                <h1 className="text-xl font-bold text-foreground tracking-tight">
                   {workflow.name}
                 </h1>
                 {workflow.escalade && (
-                  <AlertTriangle className="h-4 w-4 text-amber-500 flex-shrink-0" />
+                  <AlertTriangle className="h-4 w-4 text-amber-500 dark:text-amber-400 flex-shrink-0" />
                 )}
               </div>
               <p className="text-xs text-muted-foreground mb-3">
@@ -191,11 +201,11 @@ export default function WorkflowDetailPage() {
               <Button
                 size="sm"
                 variant="outline"
-                className="h-8 rounded-md text-xs gap-1.5 border-neutral-200 shadow-xs bg-white text-neutral-700 hover:bg-neutral-50"
-                onClick={() => window.open("https://workflow.management.example.com", "_blank")}
+                className="h-8 rounded-md text-xs gap-1.5 border-border shadow-xs bg-background text-foreground hover:bg-muted"
+                onClick={() => window.open(workflow.erpUrl || "https://workflow.management.example.com", "_blank")}
               >
-                <ExternalLink className="h-3 w-3 text-neutral-500" />
-                Ouvrir dans Workflow Management
+                <ExternalLink className="h-3 w-3 text-muted-foreground" />
+                Ouvrir dans ERP
               </Button>
             </div>
           </div>
@@ -207,28 +217,28 @@ export default function WorkflowDetailPage() {
 
         {/* Info Blocks Grid */}
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-          <div className="bg-white border border-neutral-200/80 rounded-xl p-4 shadow-xs">
-            <div className="text-[11px] font-medium text-neutral-400 mb-1">Documents Engagés</div>
-            <div className="text-xl font-bold text-neutral-900">{totalDocs}</div>
+          <div className="bg-card border border-border rounded-xl p-4 shadow-xs">
+            <div className="text-[11px] font-medium text-muted-foreground mb-1">Documents Engagés</div>
+            <div className="text-xl font-bold text-foreground">{totalDocs}</div>
           </div>
-          <div className="bg-white border border-neutral-200/80 rounded-xl p-4 shadow-xs">
-            <div className="text-[11px] font-medium text-neutral-400 mb-1">Échéance globale</div>
-            <div className={cn("text-sm font-bold", workflow.escalade ? "text-amber-600" : "text-neutral-900")}>
+          <div className="bg-card border border-border rounded-xl p-4 shadow-xs">
+            <div className="text-[11px] font-medium text-muted-foreground mb-1">Échéance globale</div>
+            <div className={cn("text-sm font-bold", workflow.escalade ? "text-amber-600 dark:text-amber-400" : "text-foreground")}>
               {workflow.deadline}
             </div>
           </div>
-          <div className="bg-white border border-neutral-200/80 rounded-xl p-4 shadow-xs">
-            <div className="text-[11px] font-medium text-neutral-400 mb-1">Dernière Synchronisation</div>
-            <div className="text-sm font-bold text-neutral-900">{workflow.lastActivity}</div>
+          <div className="bg-card border border-border rounded-xl p-4 shadow-xs">
+            <div className="text-[11px] font-medium text-muted-foreground mb-1">Dernière Synchronisation</div>
+            <div className="text-sm font-bold text-foreground">{workflow.lastActivity}</div>
           </div>
         </div>
 
         {/* ─── BARRE DE RÉPARTITION CUMULÉE (STACKED BAR) ─── */}
-        <div className="bg-white border border-neutral-200/80 rounded-xl p-5 shadow-xs space-y-4">
-          <h2 className="text-xs font-bold text-neutral-800 tracking-wide uppercase">Distribution analytique des documents</h2>
+        <div className="bg-card border border-border rounded-xl p-5 shadow-xs space-y-4">
+          <h2 className="text-xs font-bold text-foreground tracking-wide uppercase">Distribution analytique des documents</h2>
           
           {/* Composant Stacked Bar unifié */}
-          <div className="w-full h-8 rounded-lg overflow-hidden flex bg-neutral-100 p-0.5 border border-neutral-200/50">
+          <div className="w-full h-8 rounded-lg overflow-hidden flex bg-muted p-0.5 border border-border/50">
             {workflow.steps.map((step, stepIdx) => {
               const docsAtStep = workflow.documents.filter((d) => d.atStep === stepIdx).length
               const pct = totalDocs > 0 ? (docsAtStep / totalDocs) * 100 : 0
@@ -252,7 +262,7 @@ export default function WorkflowDetailPage() {
           </div>
 
           {/* Légende détaillée sous la barre */}
-          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 pt-2 border-t border-neutral-100">
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 pt-2 border-t border-border">
             {workflow.steps.map((step, stepIdx) => {
               const count = workflow.documents.filter((d) => d.atStep === stepIdx).length
               const pct = totalDocs > 0 ? (count / totalDocs) * 100 : 0
@@ -260,7 +270,7 @@ export default function WorkflowDetailPage() {
                 <div key={stepIdx} className="flex items-start gap-2">
                   <span className={cn("w-2.5 h-2.5 rounded-sm mt-1 flex-shrink-0", stepColors[stepIdx % stepColors.length])} />
                   <div className="min-w-0">
-                    <p className="text-xs font-bold text-neutral-900 truncate">{step}</p>
+                    <p className="text-xs font-bold text-foreground truncate">{step}</p>
                     <p className="text-[11px] text-muted-foreground">{count} doc • {pct.toFixed(0)}%</p>
                   </div>
                 </div>
@@ -271,7 +281,7 @@ export default function WorkflowDetailPage() {
 
         {/* ─── FILES DOCUMENTAIRES SOUS FORME D'ACCORDÉONS ─── */}
         <div className="space-y-3">
-          <h2 className="text-xs font-bold text-neutral-800 tracking-wide uppercase px-1">Détail des files d'attente GED</h2>
+          <h2 className="text-xs font-bold text-foreground tracking-wide uppercase px-1">Détail des files d'attente GED</h2>
           
           {workflow.steps.map((step, stepIdx) => {
             const docsAtStep = workflow.documents.filter((d) => d.atStep === stepIdx)
@@ -282,14 +292,14 @@ export default function WorkflowDetailPage() {
               <div
                 key={stepIdx}
                 className={cn(
-                  "bg-white border rounded-xl overflow-hidden shadow-xs transition-all border-neutral-200/80",
-                  isCurrentGlobalStep && "border-l-4 border-l-amber-500"
+                  "bg-card border rounded-xl overflow-hidden shadow-xs transition-all border-border",
+                  isCurrentGlobalStep && "border-l-4 border-l-amber-500 dark:border-l-amber-400"
                 )}
               >
                 {/* Entête Déclencheur de l'Accordéon */}
                 <button
                   onClick={() => setOpenStep(isOpen ? null : stepIdx)}
-                  className="w-full p-4 flex items-center justify-between gap-4 hover:bg-neutral-50/60 transition-colors text-left"
+                  className="w-full p-4 flex items-center justify-between gap-4 hover:bg-muted/60 transition-colors text-left"
                 >
                   <div className="flex items-center gap-3 min-w-0">
                     <div className={cn(
@@ -299,9 +309,9 @@ export default function WorkflowDetailPage() {
                       {stepIdx + 1}
                     </div>
                     <div className="min-w-0">
-                      <span className="text-sm font-bold text-neutral-900">{step}</span>
+                      <span className="text-sm font-bold text-foreground">{step}</span>
                       {isCurrentGlobalStep && (
-                        <span className="ml-2 text-[10px] font-semibold bg-amber-100 text-amber-800 border border-amber-200/60 px-1.5 py-0.5 rounded-md">
+                        <span className="ml-2 text-[10px] font-semibold bg-amber-100/80 text-amber-900 dark:bg-amber-900/40 dark:text-amber-200 border border-amber-200/60 dark:border-amber-800/40 px-1.5 py-0.5 rounded-md">
                           Étape active principale
                         </span>
                       )}
@@ -309,16 +319,16 @@ export default function WorkflowDetailPage() {
                   </div>
                   
                   <div className="flex items-center gap-3 flex-shrink-0">
-                    <Badge variant="secondary" className="text-[11px] font-medium bg-neutral-100 text-neutral-700 shadow-none border px-1.5 py-0">
+                    <Badge variant="secondary" className="text-[11px] font-medium bg-muted text-muted-foreground shadow-none border px-1.5 py-0">
                       {docsAtStep.length} document{docsAtStep.length > 1 ? "s" : ""}
                     </Badge>
-                    <ChevronDown className={cn("h-4 w-4 text-neutral-400 transition-transform duration-200", isOpen && "rotate-180")} />
+                    <ChevronDown className={cn("h-4 w-4 text-muted-foreground transition-transform duration-200", isOpen && "rotate-180")} />
                   </div>
                 </button>
 
                 {/* Corps de l'Accordéon (Contenu expansé) */}
                 {isOpen && (
-                  <div className="border-t border-neutral-100 bg-neutral-50/40 p-4 space-y-2 animate-in slide-in-from-top-1 duration-200">
+                  <div className="border-t border-border bg-muted/20 p-4 space-y-2 animate-in slide-in-from-top-1 duration-200">
                     {docsAtStep.length > 0 ? (
                       <div className="grid grid-cols-1 gap-2">
                         {docsAtStep.map((doc) => {
@@ -327,14 +337,14 @@ export default function WorkflowDetailPage() {
                           return (
                             <div
                               key={doc.id}
-                              className="flex items-center justify-between p-3 bg-white rounded-lg border border-neutral-200/60 hover:border-neutral-300 transition-all shadow-2xs text-xs"
+                              className="flex items-center justify-between p-3 bg-background rounded-lg border border-border/60 hover:border-border transition-all shadow-2xs text-xs"
                             >
                               <div className="flex items-center gap-3 min-w-0">
-                                <div className="flex items-center justify-center h-8 w-8 rounded-md bg-neutral-50 border flex-shrink-0">
-                                  <FileIcon className="h-4 w-4 text-neutral-500" />
+                                <div className="flex items-center justify-center h-8 w-8 rounded-md bg-muted border border-border/50 flex-shrink-0">
+                                  <FileIcon className="h-4 w-4 text-muted-foreground" />
                                 </div>
                                 <div className="min-w-0">
-                                  <p className="font-bold text-neutral-900 truncate">
+                                  <p className="font-bold text-foreground truncate">
                                     {doc.name}
                                   </p>
                                   <p className="text-[10px] text-muted-foreground mt-0.5">
@@ -342,8 +352,8 @@ export default function WorkflowDetailPage() {
                                   </p>
                                 </div>
                               </div>
-                              <Button variant="ghost" size="sm" className="h-8 rounded-md text-xs font-semibold text-neutral-700 hover:bg-neutral-100">
-                                Ouvrir dans la GED
+                              <Button variant="ghost" size="sm" className="h-8 rounded-md text-xs font-semibold text-foreground hover:bg-muted">
+                                Ouvrir le chemin
                               </Button>
                             </div>
                           )
@@ -360,6 +370,27 @@ export default function WorkflowDetailPage() {
             )
           })}
         </div>
+
+        {/* ─── CODE DE RÉFÉRENCE DU DOSSIER ERP ─── */}
+        {workflow.referenceCode && (
+          <div className="bg-card border border-border rounded-xl p-5 shadow-xs">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-[11px] font-medium text-muted-foreground mb-2">Code de référence du dossier</p>
+                <p className="text-lg font-mono font-bold text-foreground tracking-wide">{workflow.referenceCode}</p>
+              </div>
+              <Button
+                size="sm"
+                variant="outline"
+                className="h-8 rounded-md text-xs gap-1.5 border-border shadow-xs bg-background text-foreground hover:bg-muted"
+                onClick={() => window.open(workflow.erpUrl || "https://erp.example.com", "_blank")}
+              >
+                <ExternalLink className="h-3 w-3 text-muted-foreground" />
+                Voir dans ERP
+              </Button>
+            </div>
+          </div>
+        )}
       </main>
     </Shell>
   )

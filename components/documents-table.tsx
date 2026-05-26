@@ -9,11 +9,11 @@ import {
 } from "@/components/ui/dropdown-menu"
 
 const documents = [
-  { id: "DOC-2841", name: "Facture TOTAL Energie — Avr. 2026", armoire: "Finance", type: "Facture", date: "23 Avr 2026", status: "Approuve", source: "email" },
-  { id: "DOC-2840", name: "Contrat CDI — Jean-Marc Boka", armoire: "RH", type: "Contrat", date: "22 Avr 2026", status: "En validation", source: "upload" },
-  { id: "DOC-2839", name: "Rapport Audit Q1 2026", armoire: "Juridique", type: "Rapport", date: "20 Avr 2026", status: "En attente", source: "upload" },
-  { id: "DOC-2838", name: "Bon de commande #7821", armoire: "Finance", type: "Commande", date: "18 Avr 2026", status: "Approuve", source: "email" },
-  { id: "DOC-2837", name: "Procedure Securite Incendie", armoire: "General", type: "Procedure", date: "15 Avr 2026", status: "Rejete", source: "upload" },
+  { id: "DOC-2841", name: "Facture TOTAL Energie — Avr. 2026", armoire: "Finance", type: "Facture", date: "23 Avr 2026", status: "Approuve", source: "email", path: "Finance/Factures/2026/Avril" },
+  { id: "DOC-2840", name: "Contrat CDI — Jean-Marc Boka", armoire: "RH", type: "Contrat", date: "22 Avr 2026", status: "En validation", source: "upload", path: "RH/Contrats/CDI" },
+  { id: "DOC-2839", name: "Rapport Audit Q1 2026", armoire: "Juridique", type: "Rapport", date: "20 Avr 2026", status: "En attente", source: "upload", path: "Juridique/Rapports/2026/Q1" },
+  { id: "DOC-2838", name: "Bon de commande #7821", armoire: "Finance", type: "Commande", date: "18 Avr 2026", status: "Approuve", source: "email", path: "Finance/Commandes/2026" },
+  { id: "DOC-2837", name: "Procedure Securite Incendie", armoire: "General", type: "Procedure", date: "15 Avr 2026", status: "Rejete", source: "upload", path: "General/Procedures/Securite" },
 ]
 
 const statusStyles: Record<string, string> = {
@@ -40,9 +40,12 @@ export function DocumentsTable() {
         <table className="w-full text-sm">
           <thead>
             <tr className="border-b border-border">
-              <th className="text-left text-xs font-medium text-muted-foreground px-5 py-3">Document</th>
-              <th className="text-left text-xs font-medium text-muted-foreground px-3 py-3 hidden md:table-cell">Direction</th>
-              <th className="text-left text-xs font-medium text-muted-foreground px-3 py-3 hidden lg:table-cell">Date</th>
+              <th className="text-left text-xs font-medium text-muted-foreground px-5 py-3">N° Unique</th>
+              <th className="text-left text-xs font-medium text-muted-foreground px-3 py-3">Document</th>
+              <th className="text-left text-xs font-medium text-muted-foreground px-3 py-3 hidden md:table-cell">Nature</th>
+              <th className="text-left text-xs font-medium text-muted-foreground px-3 py-3 hidden lg:table-cell">Direction</th>
+              <th className="text-left text-xs font-medium text-muted-foreground px-3 py-3 hidden xl:table-cell">Chemin d&apos;accès</th>
+              <th className="text-left text-xs font-medium text-muted-foreground px-3 py-3 hidden sm:table-cell">Source</th>
               <th className="text-left text-xs font-medium text-muted-foreground px-3 py-3">Statut</th>
               <th className="px-5 py-3" />
             </tr>
@@ -51,23 +54,31 @@ export function DocumentsTable() {
             {documents.map((doc, i) => (
               <tr key={i} className="border-b border-border last:border-0 hover:bg-muted/40 transition-colors group">
                 <td className="px-5 py-3.5">
+                  <span className="font-mono text-xs font-semibold text-foreground">{doc.id}</span>
+                </td>
+                <td className="px-3 py-3.5">
                   <div className="flex flex-col gap-0.5">
                     <span className="font-medium text-foreground text-xs truncate max-w-[220px]">{doc.name}</span>
-                    <div className="flex items-center gap-1.5">
-                      <span className="text-[10px] text-muted-foreground">{doc.id}</span>
-                      {doc.source === "email" && (
-                        <span className="flex items-center gap-0.5 text-[10px] text-muted-foreground border border-border rounded px-1 leading-4">
-                          <Mail className="h-2.5 w-2.5" /> email
-                        </span>
-                      )}
-                    </div>
                   </div>
                 </td>
                 <td className="px-3 py-3.5 hidden md:table-cell">
-                  <Badge variant="outline" className="text-[10px] font-normal">{doc.armoire}</Badge>
+                  <Badge variant="outline" className="text-[10px] font-normal">{doc.type}</Badge>
                 </td>
                 <td className="px-3 py-3.5 hidden lg:table-cell">
-                  <span className="text-xs text-muted-foreground">{doc.date}</span>
+                  <Badge variant="outline" className="text-[10px] font-normal">{doc.armoire}</Badge>
+                </td>
+                <td className="px-3 py-3.5 hidden xl:table-cell">
+                  <span className="text-xs text-muted-foreground truncate max-w-[180px]">{doc.path}</span>
+                </td>
+                <td className="px-3 py-3.5 hidden sm:table-cell">
+                  {doc.source === "email" && (
+                    <span className="flex items-center gap-0.5 text-[10px] text-muted-foreground border border-border rounded px-1 py-0.5 w-fit">
+                      <Mail className="h-2.5 w-2.5" /> email
+                    </span>
+                  )}
+                  {doc.source === "upload" && (
+                    <span className="text-[10px] text-muted-foreground px-1 py-0.5">Upload</span>
+                  )}
                 </td>
                 <td className="px-3 py-3.5">
                   <span className={`inline-flex items-center rounded-full px-2 py-0.5 text-[10px] font-medium border ${statusStyles[doc.status]}`}>
@@ -89,6 +100,7 @@ export function DocumentsTable() {
                         </Button>
                       </DropdownMenuTrigger>
                       <DropdownMenuContent align="end" className="text-xs">
+                        <DropdownMenuItem>Voir les détails</DropdownMenuItem>
                         <DropdownMenuItem>Envoyer en validation</DropdownMenuItem>
                         <DropdownMenuItem>Voir l&apos;historique</DropdownMenuItem>
                         <DropdownMenuItem>Telecharger</DropdownMenuItem>

@@ -2,6 +2,7 @@ import type { Metadata } from 'next'
 import { Geist, Geist_Mono } from 'next/font/google'
 import { Analytics } from '@vercel/analytics/next'
 import { ThemeProvider } from '@/components/theme-provider'
+import { ProgressBar } from '@/components/progress-bar'
 import { Toaster } from '@/components/ui/sonner'
 import './globals.css'
 
@@ -45,6 +46,7 @@ export default function RootLayout({
           enableSystem
           disableTransitionOnChange={false}
         >
+          <ProgressBar />
           {children}
           <Toaster />
         </ThemeProvider>

@@ -2,6 +2,7 @@
 
 import { Shell } from "@/components/shell"
 import { Header } from "@/components/header"
+import { useRouter } from "next/navigation"
 import {
   GitBranch,
   CheckCircle2,
@@ -10,7 +11,6 @@ import {
   AlertTriangle,
   RefreshCw,
   FileText,
-  ChevronDown,
   ExternalLink,
 } from "lucide-react"
 import { Button } from "@/components/ui/button"
@@ -47,6 +47,8 @@ interface WorkflowData {
   deadline: string
   escalade: boolean
   documents: WorkflowDocument[]
+  referenceCode?: string
+  erpUrl?: string
 }
 
 const workflows: WorkflowData[] = [
@@ -68,6 +70,9 @@ const workflows: WorkflowData[] = [
       { id: "d5", name: "Budget_Q1_2026.xlsx", type: "xlsx", atStep: 1, uploadedAt: "19 mai 2026" },
       { id: "d6", name: "Facture_Orange_Mar2026.pdf", type: "pdf", atStep: 2, uploadedAt: "18 mai 2026" },
       { id: "d7", name: "Facture_MTN_Avr2026.pdf", type: "pdf", atStep: 1, uploadedAt: "18 mai 2026" },
+      { id: "d8", name: "Facture_MTN_Avr2026.pdf", type: "pdf", atStep: 3, uploadedAt: "18 mai 2026" },
+      { id: "d9", name: "Facture_MTN_Avr2026.pdf", type: "pdf", atStep: 3, uploadedAt: "18 mai 2026" },
+      { id: "d10", name: "Facture_MTN_Avr2026.pdf", type: "pdf", atStep: 1, uploadedAt: "18 mai 2026" },
     ],
   },
   {
@@ -82,6 +87,10 @@ const workflows: WorkflowData[] = [
     escalade: false,
     documents: [
       { id: "d1", name: "CDI_Jean_Marc_Boka.docx", type: "docx", atStep: 1, uploadedAt: "21 mai 2026" },
+      { id: "d2", name: "CDI_Jean_Marc_Boka.docx", type: "docx", atStep: 2, uploadedAt: "21 mai 2026" },
+      { id: "d3", name: "CDI_Jean_Marc_Boka.docx", type: "docx", atStep: 1, uploadedAt: "21 mai 2026" },
+      { id: "d4", name: "CDI_Jean_Marc_Boka.docx", type: "docx", atStep: 0, uploadedAt: "21 mai 2026" },
+      { id: "d5", name: "CDI_Jean_Marc_Boka.docx", type: "docx", atStep: 3, uploadedAt: "21 mai 2026" },
     ],
   },
   {
@@ -120,16 +129,15 @@ const workflows: WorkflowData[] = [
 ]
 
 const statusConfig = {
-  active: { label: "En cours", icon: Clock, className: "bg-neutral-900 text-white" },
-  completed: { label: "Terminé", icon: CheckCircle2, className: "bg-neutral-100 text-neutral-600" },
-  pending: { label: "En attente", icon: AlertCircle, className: "bg-amber-100 text-amber-800" },
+  active: { label: "En cours", icon: Clock, className: "bg-foreground text-background dark:bg-white dark:text-black" },
+  completed: { label: "Terminé", icon: CheckCircle2, className: "bg-muted text-muted-foreground" },
+  pending: { label: "En attente", icon: AlertCircle, className: "bg-amber-100/80 text-amber-900 dark:bg-amber-900/40 dark:text-amber-200" },
 }
 
 export default function WorkflowsPage() {
+  const router = useRouter()
   const [syncing, setSyncing] = useState(false)
   const [searchQuery, setSearchQuery] = useState("")
-  // État local pour simuler l'ouverture d'un accordéon de détails directement sur la page si besoin
-  const [expandedWorkflow, setExpandedWorkflow] = useState<string | null>(null)
 
   const handleSync = () => {
     setSyncing(true)
@@ -144,16 +152,16 @@ export default function WorkflowsPage() {
   return (
     <Shell>
       <Header />
-      <main className="p-6 space-y-6">
+      <main className="p-6 space-y-6 bg-background">
         {/* Top Controls */}
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b pb-4">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b pb-4 border-border">
           <div>
             <h1 className="text-xl font-bold tracking-tight text-neutral-900">Suivi des Workflows</h1>
             <p className="text-xs text-muted-foreground mt-0.5">
               {workflows.length} modèles actifs connectés à la plateforme de gestion externe.
             </p>
           </div>
-          <div className="flex items-center gap-2.5 self-end sm:self-auto">
+          <div className="flex items-center gap-2.5 self-end sm:self-auto flex-wrap">
             <Input
               placeholder="Rechercher un modèle..."
               value={searchQuery}
@@ -170,6 +178,15 @@ export default function WorkflowsPage() {
               <RefreshCw className={cn("h-3.5 w-3.5 text-neutral-500", syncing && "animate-spin")} />
               Sync. Plateforme
             </Button>
+            <Button
+              size="sm"
+              variant="outline"
+              className="h-9 gap-2 text-xs border-neutral-200 shadow-sm"
+              onClick={() => window.open("https://workflow-management-opal.vercel.app/", "_blank")}
+            >
+              <ExternalLink className="h-3.5 w-3.5 text-neutral-500" />
+              Aller dans l'ERP
+            </Button>
           </div>
         </div>
 
@@ -183,21 +200,22 @@ export default function WorkflowsPage() {
             return (
               <div
                 key={wf.id}
+                onClick={() => router.push(`/workflows/${wf.id}`)}
                 className={cn(
-                  "group rounded-xl border bg-white p-5 shadow-sm transition-all flex flex-col border-neutral-200/80",
-                  wf.escalade && "border-amber-200 bg-amber-50/10"
+                  "group rounded-xl border bg-card p-5 shadow-sm transition-all flex flex-col border-border cursor-pointer hover:shadow-md",
+                  wf.escalade && "border-amber-200/60 bg-amber-50/30 dark:border-amber-900/40 dark:bg-amber-950/20"
                 )}
               >
                 {/* Top Card Row */}
                 <div className="flex items-start justify-between gap-3 mb-5">
                   <div className="flex items-center gap-3 min-w-0">
-                    <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-neutral-50 border group-hover:bg-neutral-900 group-hover:text-white transition-colors flex-shrink-0">
-                      <GitBranch className="h-4 w-4 text-neutral-600 group-hover:text-white" />
+                    <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-muted border border-border group-hover:bg-foreground group-hover:text-background dark:group-hover:bg-background dark:group-hover:text-foreground transition-colors flex-shrink-0">
+                      <GitBranch className="h-4 w-4 text-muted-foreground group-hover:text-background dark:group-hover:text-foreground" />
                     </div>
                     <div className="min-w-0">
                       <div className="flex items-center gap-2 mb-0.5">
-                        <h3 className="text-sm font-bold text-neutral-900 truncate">{wf.name}</h3>
-                        {wf.escalade && <AlertTriangle className="h-3.5 w-3.5 text-amber-500 flex-shrink-0" />}
+                        <h3 className="text-sm font-bold text-foreground truncate">{wf.name}</h3>
+                        {wf.escalade && <AlertTriangle className="h-3.5 w-3.5 text-amber-500 dark:text-amber-400 flex-shrink-0" />}
                       </div>
                       <p className="text-xs text-muted-foreground truncate">{wf.description}</p>
                     </div>
@@ -210,13 +228,13 @@ export default function WorkflowsPage() {
 
                 {/* ─── BARRE DE RÉPARTITION CUMULÉE (STACKED BAR) ─── */}
                 <div className="space-y-2 mb-4">
-                  <div className="text-[11px] font-medium text-neutral-500 flex justify-between">
+                  <div className="text-[11px] font-medium text-muted-foreground flex justify-between">
                     <span>Distribution des documents par étape</span>
-                    <span className="text-neutral-900 font-semibold">{totalDocs} doc{totalDocs > 1 ? 's' : ''}</span>
+                    <span className="text-foreground font-semibold">{totalDocs} doc{totalDocs > 1 ? 's' : ''}</span>
                   </div>
                   
                   {/* Container de la barre cumulée */}
-                  <div className="w-full h-7 rounded-lg overflow-hidden flex bg-neutral-100 p-0.5 border border-neutral-200/50">
+                  <div className="w-full h-2 rounded-lg overflow-hidden flex bg-muted p-0.5">
                     {wf.steps.map((step, stepIdx) => {
                       const docsAtStep = wf.documents.filter((d) => d.atStep === stepIdx).length
                       // Calcul du pourcentage de largeur (si aucun document, proportion égale minimale pour l'UI, ou 0)
@@ -233,7 +251,7 @@ export default function WorkflowsPage() {
                             stepColors[stepIdx % stepColors.length]
                           )}
                         >
-                          <span>{docsAtStep}</span>
+                          {/* <span>{docsAtStep}</span> */}
                           {/* Tooltip au survol */}
                           <div className="absolute bottom-full mb-1 left-1/2 -translate-x-1/2 bg-neutral-950 text-white text-[9px] px-2 py-0.5 rounded opacity-0 pointer-events-none group-hover/segment:opacity-100 transition-opacity whitespace-nowrap z-10">
                             {step} : {docsAtStep} doc{docsAtStep > 1 ? 's' : ''}
@@ -245,13 +263,13 @@ export default function WorkflowsPage() {
                 </div>
 
                 {/* Légende horizontale sous la barre */}
-                <div className="flex flex-wrap gap-x-3 gap-y-1 mb-5 text-[10px] text-muted-foreground border-b pb-3 border-neutral-100">
+                <div className="flex flex-wrap gap-x-3 gap-y-1 mb-5 text-[10px] text-muted-foreground border-b pb-3 border-border">
                   {wf.steps.map((step, stepIdx) => {
                     const count = wf.documents.filter((d) => d.atStep === stepIdx).length
                     return (
                       <div key={stepIdx} className="flex items-center gap-1.5">
                         <span className={cn("w-2 h-2 rounded-full", stepColors[stepIdx % stepColors.length])} />
-                        <span className={cn("font-medium", count > 0 && "text-neutral-900")}>
+                        <span className={cn("font-medium", count > 0 && "text-foreground")}>
                           {step} ({count})
                         </span>
                       </div>
@@ -259,73 +277,7 @@ export default function WorkflowsPage() {
                   })}
                 </div>
 
-                {/* Footer Actions / Accordion Trigger */}
-                <div className="mt-auto pt-1 flex items-center justify-between gap-2">
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    className="text-xs h-8 text-neutral-600 hover:text-neutral-900 px-2 gap-1"
-                    onClick={() => setExpandedWorkflow(expandedWorkflow === wf.id ? null : wf.id)}
-                  >
-                    <ChevronDown className={cn("h-3.5 w-3.5 transition-transform", expandedWorkflow === wf.id && "rotate-180")} />
-                    {expandedWorkflow === wf.id ? "Masquer les détails" : "Voir les documents"}
-                  </Button>
-                  
-                  <Button
-                    variant="link"
-                    size="sm"
-                    className="text-xs h-8 text-blue-600 hover:text-blue-700 font-medium gap-1 px-0"
-                    asChild
-                  >
-                    <a href={`/workflows/${wf.id}`}>
-                      Ouvrir le Workflow <ExternalLink className="h-3 w-3" />
-                    </a>
-                  </Button>
-                </div>
 
-                {/* ─── STRUCTURE ACCORDÉON EXPANSÉE (DÉTAILS DES FILES GED) ─── */}
-                {expandedWorkflow === wf.id && (
-                  <div className="mt-4 pt-4 border-t border-dashed space-y-3 animate-in fade-in-50 duration-200">
-                    <div className="text-xs font-bold text-neutral-800">Localisation des fichiers GED par file d'attente :</div>
-                    <div className="space-y-2">
-                      {wf.steps.map((step, stepIdx) => {
-                        const stepDocs = wf.documents.filter((d) => d.atStep === stepIdx)
-                        return (
-                          <div key={stepIdx} className="border rounded-lg overflow-hidden bg-neutral-50/50">
-                            {/* Entête de l'accordéon d'étape */}
-                            <div className="p-2.5 bg-neutral-50 flex items-center justify-between border-b text-xs font-medium">
-                              <div className="flex items-center gap-2">
-                                <span className={cn("w-1.5 h-1.5 rounded-full", stepColors[stepIdx % stepColors.length])} />
-                                <span className="text-neutral-700">{step}</span>
-                              </div>
-                              <Badge variant="outline" className="text-[10px] bg-white font-normal px-1.5">
-                                {stepDocs.length} fichier{stepDocs.length > 1 ? 's' : ''}
-                              </Badge>
-                            </div>
-                            {/* Liste des documents GED de cette étape */}
-                            <div className="p-2 space-y-1.5">
-                              {stepDocs.length === 0 ? (
-                                <p className="text-[11px] text-muted-foreground italic p-1">Aucun document à cette étape.</p>
-                              ) : (
-                                stepDocs.map((doc) => (
-                                  <div key={doc.id} className="flex items-center justify-between p-1.5 rounded bg-white border border-neutral-100 shadow-2xs text-xs">
-                                    <div className="flex items-center gap-2 min-w-0">
-                                      <FileText className="h-3.5 w-3.5 text-neutral-400 flex-shrink-0" />
-                                      <span className="font-medium text-neutral-800 truncate">{doc.name}</span>
-                                    </div>
-                                    <span className="text-[10px] text-muted-foreground flex-shrink-0 bg-neutral-50 px-1 py-0.5 rounded">
-                                      Arrivé le {doc.uploadedAt}
-                                    </span>
-                                  </div>
-                                ))
-                              )}
-                            </div>
-                          </div>
-                        )
-                      })}
-                    </div>
-                  </div>
-                )}
               </div>
             )
           })}
