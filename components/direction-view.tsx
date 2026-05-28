@@ -662,17 +662,19 @@ function DirectionGrid({
   const countAgences = (dir: Direction) => dir.agences.length || (dir.armoires.length > 0 ? 1 : 0)
 
   return (
-    <div className="p-6 max-w-7xl mx-auto w-full">
+    <div className="p-6 max-w-8xl mx-auto w-full">
       {/* Top bar */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6">
+      {/* <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6">
         <div className="flex items-center gap-3">
           <span className="text-xl font-semibold text-foreground">Directions</span>
         </div>
-      </div>
+      </div> */}
 
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-8">
         <div className="flex items-center gap-3">
-          <span className="text-sm font-medium text-muted-foreground bg-muted/50 px-2 py-1 rounded">{filtered.length} resultat(s)</span>
+          <span className="text-sm font-medium text-muted-foreground bg-muted/50 px-2 py-1 rounded">{filtered.length} Directions(s)</span>
+                  </div>
+        <div className="flex items-center gap-2">
           <div className="relative ml-4">
             <Search className="absolute left-2.5 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
             <Input
@@ -700,8 +702,7 @@ function DirectionGrid({
               <List className="h-4 w-4" />
             </Button>
           </div>
-        </div>
-        <div className="flex items-center gap-2">
+
           <Button className="h-10 gap-2 text-sm bg-black text-white hover:bg-black/90 rounded-lg" onClick={onCreate}>
             <Plus className="h-4 w-4" />
             Nouvelle direction

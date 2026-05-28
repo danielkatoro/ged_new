@@ -32,12 +32,13 @@ type Section =
   | "integrations"
   | "armoires"
 
-const ROLES: UserRole[] = ["Superadmin", "Admin Armoire", "Contributeur", "Lecteur", "Approbateur"]
+const ROLES: UserRole[] = ["Superadmin", "Admin Armoire", "Contributeur", "Admin Agence", "Lecteur", "Approbateur"]
 
 const roleStyles: Record<UserRole, string> = {
   "Superadmin":    "bg-foreground text-background",
   "Admin Armoire": "bg-muted text-foreground border border-border",
   "Contributeur":  "bg-muted text-muted-foreground",
+  "Admin Agence":  "bg-muted text-muted-foreground",
   "Approbateur":   "bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400",
   "Lecteur":       "bg-muted text-muted-foreground",
 }
@@ -85,7 +86,7 @@ export default function ParametresPage() {
     <Shell>
       <Header />
       <main className="p-4">
-        <div className="max-w-6xl mx-auto">
+        <div className="max-w-8xl mx-auto">
 
           {/* Title */}
           <div className="mb-4">

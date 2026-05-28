@@ -127,31 +127,3 @@
     transition: background-color 0.3s ease, color 0.3s ease;
   }
 }
-
-/* NProgress Bar Styles */
-#nprogress {
-  pointer-events: none;
-}
-
-#nprogress .bar {
-  background: hsl(var(--primary));
-  height: 3px;
-  position: fixed;
-  top: 0;
-  left: 0;
-  z-index: 9999;
-  box-shadow: 0 0 15px hsl(var(--primary)), 0 0 8px hsl(var(--primary));
-}
-
-#nprogress .peg {
-  box-shadow: 40px 0 20px hsl(var(--primary)), 0 0 20px hsl(var(--primary));
-}
-
-.dark #nprogress .bar {
-  background: hsl(var(--primary));
-  box-shadow: 0 0 15px hsl(var(--primary) / 0.8), 0 0 8px hsl(var(--primary) / 0.8);
-}
-
-.dark #nprogress .peg {
-  box-shadow: 40px 0 20px hsl(var(--primary) / 0.8), 0 0 20px hsl(var(--primary) / 0.8);
-}

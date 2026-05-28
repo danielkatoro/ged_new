@@ -1,6 +1,6 @@
 // Auth store using localStorage — local state only, no backend
 
-export type UserRole = "Superadmin" | "Admin Armoire" | "Contributeur" | "Lecteur" | "Approbateur"
+export type UserRole = "Superadmin" | "Admin Armoire" | "Admin Agence" | "Contributeur" | "Lecteur" | "Approbateur"
 
 export interface ArmoireAccess {
   armoireId: string

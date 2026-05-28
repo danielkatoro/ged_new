@@ -126,7 +126,7 @@ export default function TypesDocsPage() {
       <main className="p-6 space-y-5">
         <div className="flex items-center justify-between">
           <div>
-            <h1 className="text-xl font-semibold text-foreground">Types de Documents</h1>
+            {/* <h1 className="text-xl font-semibold text-foreground">Types de Documents</h1> */}
             <p className="text-sm text-muted-foreground mt-1">{types.length} types configurés — schémas de métadonnées personnalisés</p>
           </div>
           <Button size="sm" className="h-9 gap-1.5 text-sm rounded-lg" onClick={handleAddType}>

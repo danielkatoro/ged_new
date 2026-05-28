@@ -11,7 +11,6 @@ import {
   AlertTriangle,
   RefreshCw,
   FileText,
-  ExternalLink,
 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
@@ -161,7 +160,7 @@ export default function WorkflowsPage() {
               {workflows.length} modèles actifs connectés à la plateforme de gestion externe.
             </p>
           </div>
-          <div className="flex items-center gap-2.5 self-end sm:self-auto flex-wrap">
+          <div className="flex items-center gap-2.5 self-end sm:self-auto">
             <Input
               placeholder="Rechercher un modèle..."
               value={searchQuery}
@@ -178,15 +177,6 @@ export default function WorkflowsPage() {
               <RefreshCw className={cn("h-3.5 w-3.5 text-neutral-500", syncing && "animate-spin")} />
               Sync. Plateforme
             </Button>
-            <Button
-              size="sm"
-              variant="outline"
-              className="h-9 gap-2 text-xs border-neutral-200 shadow-sm"
-              onClick={() => window.open("https://workflow-management-opal.vercel.app/", "_blank")}
-            >
-              <ExternalLink className="h-3.5 w-3.5 text-neutral-500" />
-              Aller dans l'ERP
-            </Button>
           </div>
         </div>
 
@@ -202,7 +192,7 @@ export default function WorkflowsPage() {
                 key={wf.id}
                 onClick={() => router.push(`/workflows/${wf.id}`)}
                 className={cn(
-                  "group rounded-xl border bg-card p-5 shadow-sm transition-all flex flex-col border-border cursor-pointer hover:shadow-md",
+                  "group rounded-xl border bg-card p-5 shadow-sm transition-all flex flex-col border-border cursor-pointer hover:shadow-md hover:border-primary dark:hover:border-primary/60",
                   wf.escalade && "border-amber-200/60 bg-amber-50/30 dark:border-amber-900/40 dark:bg-amber-950/20"
                 )}
               >
