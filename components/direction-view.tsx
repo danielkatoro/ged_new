@@ -3,9 +3,9 @@
 import { useState, useEffect, useCallback, useRef } from "react"
 import { useSearchParams } from "next/navigation"
 import { cn } from "@/lib/utils"
-import { store, type Direction, type Agence, type Armoire, type Dossier, type DocFile } from "@/lib/store"
+import { store, type Direction, type Agence, type Service, type Armoire, type Dossier, type DocFile } from "@/lib/store"
 import {
-  Building2, MoreHorizontal, Plus, X, ChevronRight,
+  Building2, MoreHorizontal, Plus, X, ChevronRight, ChevronDown,
   Archive, Folder, FolderOpen, FileText, Download,
   Trash2, Pencil, Search, LayoutGrid, List, ArrowLeft,
   File, FileSpreadsheet, Image, Upload, Users, Check,
@@ -31,12 +31,19 @@ import {
   SelectValue,
 } from "@/components/ui/select"
 
+type ViewState =
+  | { type: "overview"; direction: Direction; agence: Agence }
+  | { type: "service"; direction: Direction; agence: Agence; service: Service }
+  | { type: "armoire"; direction: Direction; agence: Agence; service: Service; armoire: Armoire }
+
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
 function countDocs(direction: Direction) {
-  const agences = direction.agences.length > 0 ? direction.agences : [{ id: 'fallback', name: 'Agence Principale', armoires: direction.armoires }]
-  return agences.reduce((sum, agence) =>
-    sum + agence.armoires.reduce((a, arm) => a + arm.dossiers.reduce((b, dos) => b + dos.files.length, 0), 0), 0)
+  return direction.agences.reduce((sum, agence) =>
+    sum + agence.services.reduce((serviceSum, service) =>
+      serviceSum + service.armoires.reduce((armoireSum, armoire) =>
+        armoireSum + armoire.dossiers.reduce((dosSum, dossier) =>
+          dosSum + dossier.files.length, 0), 0), 0), 0)
 }
 
 function FileTypeIcon({ type }: { type: DocFile["type"] }) {
@@ -150,6 +157,93 @@ function DirectionPanel({
           </Button>
           <Button className="flex-1 h-9 text-sm rounded" onClick={handleSave} disabled={!name.trim()}>
             {direction ? "Sauvegarder" : "Creer"}
+          </Button>
+        </div>
+      </div>
+    </>
+  )
+}
+
+// ─── Service Create/Edit Panel ────────────────────────────────────────────────
+
+function ServicePanel({
+  open,
+  onClose,
+  service,
+  onSave,
+}: {
+  open: boolean
+  onClose: () => void
+  service?: Service | null
+  onSave: (data: { name: string; description: string }) => void
+}) {
+  const [name, setName] = useState(service?.name ?? "")
+  const [description, setDescription] = useState(service?.description ?? "")
+
+  useEffect(() => {
+    if (open) {
+      setName(service?.name ?? "")
+      setDescription(service?.description ?? "")
+    }
+  }, [open, service])
+
+  const handleSave = () => {
+    if (!name.trim()) return
+    onSave({ name: name.trim(), description: description.trim() })
+    onClose()
+  }
+
+  return (
+    <>
+      <div
+        className={cn(
+          "fixed inset-0 bg-black/30 z-40 transition-opacity duration-200",
+          open ? "opacity-100" : "opacity-0 pointer-events-none"
+        )}
+        onClick={onClose}
+      />
+      <div
+        className={cn(
+          "fixed top-0 right-0 h-full w-96 bg-card border-l border-border z-50 flex flex-col shadow-xl transition-transform duration-300",
+          open ? "translate-x-0" : "translate-x-full"
+        )}
+      >
+        <div className="flex items-center justify-between px-5 py-4 border-b border-border">
+          <h3 className="text-sm font-semibold text-foreground">
+            {service ? "Modifier le Service" : "Nouveau Service"}
+          </h3>
+          <Button variant="ghost" size="icon" className="h-7 w-7" onClick={onClose}>
+            <X className="h-4 w-4" />
+          </Button>
+        </div>
+        <div className="flex-1 p-5 space-y-4 overflow-y-auto">
+          <div className="space-y-1.5">
+            <label className="text-xs font-medium text-muted-foreground">Nom *</label>
+            <Input
+              value={name}
+              onChange={e => setName(e.target.value)}
+              placeholder="Ex: Service Finance"
+              className="h-9 text-sm rounded"
+              autoFocus
+            />
+          </div>
+          <div className="space-y-1.5">
+            <label className="text-xs font-medium text-muted-foreground">Description</label>
+            <Textarea
+              value={description}
+              onChange={e => setDescription(e.target.value)}
+              placeholder="Description du service..."
+              className="text-sm rounded resize-none"
+              rows={3}
+            />
+          </div>
+        </div>
+        <div className="p-5 border-t border-border flex gap-2">
+          <Button variant="outline" className="flex-1 h-9 text-sm rounded" onClick={onClose}>
+            Annuler
+          </Button>
+          <Button className="flex-1 h-9 text-sm rounded" onClick={handleSave} disabled={!name.trim()}>
+            {service ? "Sauvegarder" : "Creer"}
           </Button>
         </div>
       </div>
@@ -475,18 +569,18 @@ function ImportFilesPanel({
     e.preventDefault()
     setIsDragging(false)
     const droppedFiles = Array.from(e.dataTransfer.files)
-    setFiles(prev => [...prev, ...droppedFiles.map(file => ({ file, source: "upload" }))])
+    setFiles(prev => [...prev, ...droppedFiles.map(file => ({ file, source: "upload" as const }))])
   }, [])
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const selectedFiles = e.target.files
     if (selectedFiles) {
-      setFiles(prev => [...prev, ...Array.from(selectedFiles).map(file => ({ file, source: "upload" }))])
+      setFiles(prev => [...prev, ...Array.from(selectedFiles).map(file => ({ file, source: "upload" as const }))])
     }
   }
 
   const handleScanCapture = (file: File) => {
-    setFiles(prev => [...prev, { file, source: "scan" }])
+    setFiles(prev => [...prev, { file, source: "scan" as const }])
   }
 
   const handleImport = () => {
@@ -655,11 +749,14 @@ function DirectionGrid({
   )
 
   const countDocs = (dir: Direction) => {
-    return dir.agences.reduce((sum, ag) => sum + ag.armoires.reduce((a, arm) => a + arm.dossiers.reduce((b, dos) => b + dos.files.length, 0), 0), 0) +
-           dir.armoires.reduce((a, arm) => a + arm.dossiers.reduce((b, dos) => b + dos.files.length, 0), 0)
+    return dir.agences.reduce((sum, ag) =>
+      sum + ag.services.reduce((servSum, serv) =>
+        servSum + serv.armoires.reduce((armSum, arm) =>
+          armSum + arm.dossiers.reduce((dosSum, dos) =>
+            dosSum + dos.files.length, 0), 0), 0), 0)
   }
 
-  const countAgences = (dir: Direction) => dir.agences.length || (dir.armoires.length > 0 ? 1 : 0)
+  const countAgences = (dir: Direction) => dir.agences.length
 
   return (
     <div className="p-6 max-w-8xl mx-auto w-full">
@@ -856,52 +953,132 @@ function DirectionGrid({
 
 function AgenceSidebar({
   direction,
-  selectedAgence,
+  viewState,
   onSelectAgence,
+  onSelectService,
   onAddAgence,
+  onAddServiceInline,
   onBack,
 }: {
   direction: Direction
-  selectedAgence: Agence | null
+  viewState: ViewState
   onSelectAgence: (ag: Agence) => void
+  onSelectService: (ag: Agence, svc: Service) => void
   onAddAgence: () => void
+  onAddServiceInline?: (ag: Agence) => void
   onBack: () => void
 }) {
   const [search, setSearch] = useState("")
+  const [expandedAgencies, setExpandedAgencies] = useState<Record<string, boolean>>({})
 
+  // Force expansion of the active agency/service's agency
+  useEffect(() => {
+    if (viewState && viewState.agence) {
+      setExpandedAgencies(prev => ({
+        ...prev,
+        [viewState.agence.id]: true
+      }))
+    }
+  }, [viewState])
+
+  const flatArmoires = direction.agences.flatMap(ag => ag.services.flatMap(svc => svc.armoires))
   const agences: Agence[] = direction.agences.length > 0
     ? direction.agences
-    : direction.armoires.length > 0
+    : flatArmoires.length > 0
       ? [{
           id: `ag-${direction.id}-default`,
           name: "Agence Principale",
           location: "Siege",
           description: "Agence principale",
-          armoires: direction.armoires,
+          services: [{ id: `svc-${direction.id}-default`, name: "Service Principal", armoires: flatArmoires }],
         }]
       : []
 
-  const filtered = agences.filter(ag =>
-    ag.name.toLowerCase().includes(search.toLowerCase())
-  )
+  // Filter agencies and services by search string
+  const filtered = agences.map(ag => {
+    const agencyMatches = ag.name.toLowerCase().includes(search.toLowerCase())
+    const filteredServices = ag.services.filter(svc =>
+      svc.name.toLowerCase().includes(search.toLowerCase())
+    )
+
+    if (agencyMatches || filteredServices.length > 0) {
+      return {
+        ...ag,
+        services: agencyMatches ? ag.services : filteredServices,
+        shouldExpand: search.length > 0 && filteredServices.length > 0 && !agencyMatches
+      }
+    }
+    return null
+  }).filter(Boolean) as (Agence & { shouldExpand?: boolean })[]
+
+  // Auto-expand agencies matching search
+  useEffect(() => {
+    if (search.length > 0) {
+      const toExpand: Record<string, boolean> = {}
+      filtered.forEach(ag => {
+        if (ag.shouldExpand) {
+          toExpand[ag.id] = true
+        }
+      })
+      if (Object.keys(toExpand).length > 0) {
+        setExpandedAgencies(prev => ({ ...prev, ...toExpand }))
+      }
+    }
+  }, [search, filtered])
 
   return (
     <div className="w-80 border-r border-border flex flex-col flex-shrink-0 bg-background h-full">
-      <div className="flex items-center gap-3 px-6 py-4 border-b border-border">
-        <Button variant="ghost" size="icon" className="h-8 w-8 -ml-2 text-muted-foreground" onClick={onBack}>
-          <ArrowLeft className="h-4 w-4" />
-        </Button>
-        <h2 className="text-base font-bold text-foreground">Agences de {direction.name}</h2>
-        <Button variant="ghost" size="icon" className="h-8 w-8 ml-auto" onClick={onAddAgence}>
-          <Plus className="h-4 w-4" />
-        </Button>
+      {/* Header */}
+      <div className="px-6 pt-5 pb-4 border-b border-border space-y-4">
+        <div className="flex items-center justify-between">
+          <Button
+            variant="ghost"
+            size="sm"
+            className="h-8 gap-1.5 text-xs text-muted-foreground hover:text-foreground hover:bg-muted rounded-full pl-2 pr-3 -ml-2"
+            onClick={onBack}
+          >
+            <ArrowLeft className="h-3.5 w-3.5" />
+            Directions
+          </Button>
+          
+          <Button
+            variant="outline"
+            size="sm"
+            className="h-8 gap-1.5 text-xs border-dashed rounded-lg"
+            onClick={onAddAgence}
+          >
+            <Plus className="h-3.5 w-3.5" />
+            Agence
+          </Button>
+        </div>
+
+        <div className="space-y-1">
+          <div className="flex items-center gap-2">
+            <span className="text-[10px] font-semibold text-muted-foreground/60 tracking-wider uppercase">Direction</span>
+            <span className={cn(
+              "text-[9px] font-semibold px-1.5 py-0.5 rounded-full",
+              direction.access === "Restreint" ? "bg-red-500/10 text-red-600 dark:text-red-400" :
+              direction.access === "Interne" ? "bg-blue-500/10 text-blue-600 dark:text-blue-400" :
+              "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400"
+            )}>
+              {direction.access}
+            </span>
+          </div>
+          <h2 className="text-xl font-bold text-foreground tracking-tight truncate">
+            {direction.name}
+          </h2>
+          <p className="text-[11px] text-muted-foreground font-medium">
+            {agences.length} agence{agences.length !== 1 ? "s" : ""} • {direction.agences.reduce((sum, ag) => sum + ag.services.length, 0)} service{direction.agences.reduce((sum, ag) => sum + ag.services.length, 0) !== 1 ? "s" : ""}
+          </p>
+        </div>
       </div>
 
+      {/* Search */}
       <div className="px-6 py-4">
         <div className="relative">
           <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
           <Input
-            placeholder="Rechercher..."
+            placeholder="Rechercher une agence, un service..."
             value={search}
             onChange={e => setSearch(e.target.value)}
             className="pl-10 h-10 text-sm bg-muted/30 border-border rounded-lg"
@@ -909,44 +1086,153 @@ function AgenceSidebar({
         </div>
       </div>
 
+      {/* Tree list */}
       <div className="flex-1 overflow-y-auto px-4 pb-4">
         {filtered.map(ag => {
-          const isActive = selectedAgence?.id === ag.id
+          const isAgencyActive = viewState.type === "overview" && viewState.agence.id === ag.id
+          const isParentOfActiveService = (viewState.type === "service" || viewState.type === "armoire") && viewState.agence.id === ag.id
+          const isExpanded = !!expandedAgencies[ag.id]
 
           return (
-            <button
-              key={ag.id}
-              onClick={() => onSelectAgence(ag)}
-              className={cn(
-                "w-full flex items-center gap-4 rounded-xl px-4 py-4 mb-2 text-left transition-all border",
-                isActive
-                  ? "bg-black text-white border-black"
-                  : "bg-card border-transparent hover:bg-muted/50 hover:border-border"
-              )}
-            >
-              <div className={cn(
-                "h-10 w-10 rounded-lg flex items-center justify-center flex-shrink-0",
-                isActive ? "bg-white/20" : "bg-muted"
-              )}>
-                <Building2 className={cn("h-5 w-5", isActive ? "text-white" : "text-muted-foreground")} />
-              </div>
-              <div className="flex-1 min-w-0">
-                <p className={cn("text-sm font-semibold truncate", isActive ? "text-white" : "text-foreground")}>{ag.name}</p>
-                {ag.location && (
-                  <p className={cn(
-                    "text-[11px] mt-0.5 flex items-center gap-1",
-                    isActive ? "text-white/70" : "text-muted-foreground"
-                  )}>
-                    <MapPin className="h-3 w-3" />
-                    {ag.location}
-                  </p>
+            <div key={ag.id} className="group relative mb-1.5">
+              <div
+                className={cn(
+                  "w-full flex items-center gap-2 rounded-xl p-2 text-left transition-all border border-transparent",
+                  isAgencyActive
+                    ? "bg-zinc-900 text-white shadow-md dark:bg-zinc-100 dark:text-zinc-950"
+                    : isParentOfActiveService
+                      ? "bg-muted/40 text-foreground border-border/40 font-medium"
+                      : "text-muted-foreground hover:bg-muted/40 hover:text-foreground"
                 )}
+              >
+                {/* Chevron */}
+                <button
+                  type="button"
+                  onClick={(e) => {
+                    e.stopPropagation()
+                    setExpandedAgencies(prev => ({ ...prev, [ag.id]: !prev[ag.id] }))
+                  }}
+                  className={cn(
+                    "h-7 w-7 rounded-lg flex items-center justify-center transition-colors shrink-0",
+                    isAgencyActive ? "hover:bg-white/10" : "hover:bg-muted"
+                  )}
+                >
+                  <ChevronRight
+                    className={cn(
+                      "h-4 w-4 transition-transform duration-200 shrink-0",
+                      isExpanded && "rotate-90",
+                      isAgencyActive ? "text-white dark:text-zinc-950" : "text-muted-foreground"
+                    )}
+                  />
+                </button>
+
+                {/* Clickable Area */}
+                <div
+                  onClick={() => {
+                    onSelectAgence(ag)
+                    setExpandedAgencies(prev => ({ ...prev, [ag.id]: true }))
+                  }}
+                  className="flex-1 flex items-center gap-3 cursor-pointer min-w-0"
+                >
+                  <div className={cn(
+                    "h-8 w-8 rounded-lg flex items-center justify-center flex-shrink-0 transition-colors",
+                    isAgencyActive
+                      ? "bg-white/20 text-white dark:bg-zinc-900 dark:text-white"
+                      : isParentOfActiveService
+                        ? "bg-zinc-900/10 text-zinc-900 dark:bg-white/10 dark:text-white"
+                        : "bg-muted text-muted-foreground"
+                  )}>
+                    <Building2 className="h-4.5 w-4.5" />
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <p className={cn(
+                      "text-sm font-semibold truncate leading-tight",
+                      isAgencyActive ? "text-white dark:text-zinc-950" : "text-foreground"
+                    )}>
+                      {ag.name}
+                    </p>
+                    {ag.location && (
+                      <p className={cn(
+                        "text-[10px] mt-0.5 flex items-center gap-1 leading-none font-normal",
+                        isAgencyActive ? "text-white/70 dark:text-zinc-800" : "text-muted-foreground"
+                      )}>
+                        <MapPin className="h-2.5 w-2.5" />
+                        {ag.location}
+                      </p>
+                    )}
+                  </div>
+                </div>
+
+                {/* Inline Actions & Badge */}
+                <div className="flex items-center gap-1 shrink-0">
+                  {onAddServiceInline && (
+                    <button
+                      type="button"
+                      onClick={(e) => {
+                        e.stopPropagation()
+                        onAddServiceInline(ag)
+                      }}
+                      className={cn(
+                        "h-6 w-6 rounded flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity hover:bg-muted/20 hover:text-foreground shrink-0",
+                        isAgencyActive ? "text-white hover:bg-white/20 dark:text-zinc-950" : "text-muted-foreground"
+                      )}
+                      title="Ajouter un service"
+                    >
+                      <Plus className="h-3.5 w-3.5" />
+                    </button>
+                  )}
+                  
+                  <span className={cn(
+                    "text-[10px] px-1.5 py-0.5 rounded-full font-medium min-w-5 text-center shrink-0",
+                    isAgencyActive
+                      ? "bg-white/20 text-white dark:bg-zinc-800 dark:text-white"
+                      : "bg-muted text-muted-foreground"
+                  )}>
+                    {ag.services.length}
+                  </span>
+                </div>
               </div>
-              <ChevronRight className={cn(
-                "h-4 w-4 flex-shrink-0",
-                isActive ? "text-white/50" : "text-muted-foreground"
-              )} />
-            </button>
+
+              {/* Nested Services Tree */}
+              {isExpanded && ag.services.length > 0 && (
+                <div className={cn(
+                  "ml-6 pl-4 border-l my-1 space-y-1 relative transition-colors duration-200",
+                  isParentOfActiveService ? "border-zinc-900/40 dark:border-zinc-100/40" : "border-border/80"
+                )}>
+                  {ag.services.map(svc => {
+                    const isServiceActive = (viewState.type === "service" || viewState.type === "armoire") &&
+                                            viewState.agence.id === ag.id &&
+                                            viewState.service.id === svc.id
+
+                    return (
+                      <div key={svc.id} className="relative group/svc">
+                        {/* Horizontal fork line */}
+                        <div className="absolute left-[-16px] top-[18px] w-3.5 h-[1px] bg-border/80 group-hover/svc:bg-foreground/20" />
+
+                        <button
+                          onClick={() => onSelectService(ag, svc)}
+                          className={cn(
+                            "w-full flex items-center gap-3 rounded-lg px-3 py-2 text-left transition-all text-sm relative",
+                            isServiceActive
+                              ? "bg-zinc-900 text-white font-medium shadow-xs dark:bg-zinc-100 dark:text-zinc-950"
+                              : "text-muted-foreground hover:text-foreground hover:bg-muted/50"
+                          )}
+                        >
+                          <Users className={cn("h-4 w-4 flex-shrink-0", isServiceActive ? "text-white dark:text-zinc-950" : "text-muted-foreground")} />
+                          <span className="flex-1 truncate">{svc.name}</span>
+                          <span className={cn(
+                            "text-[10px] px-1.5 py-0.5 rounded",
+                            isServiceActive ? "bg-white/20 text-white dark:bg-zinc-800 dark:text-white" : "bg-muted text-muted-foreground"
+                          )}>
+                            {svc.armoires.length}
+                          </span>
+                        </button>
+                      </div>
+                    )
+                  })}
+                </div>
+              )}
+            </div>
           )
         })}
       </div>
@@ -959,22 +1245,24 @@ function AgenceSidebar({
 function AgenceOverview({
   agence,
   direction,
-  onAddArmoire,
-  onOpenArmoire,
+  onAddService,
+  onOpenService,
 }: {
   agence: Agence
   direction: Direction
-  onAddArmoire: (dirId: string, agenceId: string | null, data: { name: string; icon: string; admins: string[] }) => void
-  onOpenArmoire: (agence: Agence, armoire: Armoire) => void
+  onAddService: (dirId: string, agenceId: string, data: { name: string; description: string }) => void
+  onOpenService: (agence: Agence, service: Service) => void
 }) {
-  const [armoirePanelOpen, setArmoirePanelOpen] = useState(false)
+  const [servicePanelOpen, setServicePanelOpen] = useState(false)
   const [importPanelOpen, setImportPanelOpen] = useState(false)
 
-  const countAgenceDocs = (ag: Agence) => ag.armoires.reduce((a, arm) => a + arm.dossiers.reduce((b, dos) => b + dos.files.length, 0), 0)
-  const countPendingDocs = (ag: Agence) => ag.armoires.reduce((a, arm) => a + arm.dossiers.reduce((b, dos) => b + dos.files.filter(f => f.status === "En validation").length, 0), 0)
+  const countAgenceDocs = (ag: Agence) => ag.services.reduce((a, serv) => a + serv.armoires.reduce((b, arm) => b + arm.dossiers.reduce((c, dos) => c + dos.files.length, 0), 0), 0)
+  const countPendingDocs = (ag: Agence) => ag.services.reduce((a, serv) => a + serv.armoires.reduce((b, arm) => b + arm.dossiers.reduce((c, dos) => c + dos.files.filter(f => f.status === "En validation").length, 0), 0), 0)
 
   const totalDocs = countAgenceDocs(agence)
   const pendingDocs = countPendingDocs(agence)
+  const totalServices = agence.services.length
+  const totalArmoires = agence.services.reduce((sum, serv) => sum + serv.armoires.length, 0)
 
   return (
     <div className="flex-1 overflow-y-auto bg-muted/10 h-full">
@@ -989,7 +1277,7 @@ function AgenceOverview({
             <div>
               <h1 className="text-2xl font-bold text-foreground">{agence.name}</h1>
               <div className="flex items-center gap-2 mt-1">
-                 <span className="text-sm font-medium text-muted-foreground">Responsable : {direction.directeur || "Cedric Boka"}</span>
+                 <span className="text-sm font-medium text-muted-foreground">Direction : {direction.name}</span>
               </div>
             </div>
           </div>
@@ -1013,7 +1301,130 @@ function AgenceOverview({
           </div>
           <div className="bg-muted/50 rounded-2xl p-6 flex flex-col items-center justify-center">
             <Building2 className="h-5 w-5 text-muted-foreground mb-3" />
-            <p className="text-3xl font-bold text-foreground">{agence.armoires.length}</p>
+            <p className="text-3xl font-bold text-foreground">{totalServices}</p>
+            <p className="text-xs font-medium text-muted-foreground mt-1">Services</p>
+          </div>
+          <div className="bg-muted/50 rounded-2xl p-6 flex flex-col items-center justify-center">
+            <span className="text-orange-500 font-bold text-2xl mb-1">{pendingDocs || 1}</span>
+            <p className="text-xs font-medium text-muted-foreground">En validation</p>
+          </div>
+        </div>
+
+        {/* Services Section */}
+        <div>
+          <div className="flex items-center justify-between mb-6">
+            <div className="flex items-center gap-2">
+              <h2 className="text-lg font-bold text-foreground">Services</h2>
+              <span className="text-xs font-medium text-muted-foreground bg-muted px-2.5 py-0.5 rounded-full">{agence.services.length}</span>
+            </div>
+            <Button variant="outline" className="h-9 gap-1.5 text-xs rounded-lg" onClick={() => setServicePanelOpen(true)}>
+              <Plus className="h-3.5 w-3.5" />
+              Ajouter un service
+            </Button>
+          </div>
+
+          {agence.services.length === 0 ? (
+            <div className="text-center py-12 bg-card rounded-2xl border border-border">
+              <Archive className="h-12 w-12 mx-auto text-muted-foreground/30 mb-4" />
+              <p className="text-sm font-medium text-muted-foreground mb-4">Aucun service dans cette agence</p>
+              <Button onClick={() => setServicePanelOpen(true)}>
+                <Plus className="h-4 w-4 mr-2" />
+                Ajouter un service
+              </Button>
+            </div>
+          ) : (
+            <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
+              {agence.services.map(service => (
+                <div
+                  key={service.id}
+                  onClick={() => onOpenService(agence, service)}
+                  className="bg-card border border-border rounded-2xl p-6 flex flex-col items-center justify-center cursor-pointer hover:border-foreground/20 hover:shadow-sm transition-all group h-32"
+                >
+                  <Users className="h-8 w-8 text-foreground mb-3" />
+                  <span className="text-sm font-bold text-foreground text-center truncate w-full">{service.name}</span>
+                  <span className="text-xs text-muted-foreground mt-2">{service.armoires.length} armoire(s)</span>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      </div>
+
+      <ServicePanel
+        open={servicePanelOpen}
+        onClose={() => setServicePanelOpen(false)}
+        onSave={data => {
+          onAddService(direction.id, agence.id, data)
+          setServicePanelOpen(false)
+        }}
+      />
+      <ImportFilesPanel open={importPanelOpen} onClose={() => setImportPanelOpen(false)} onImport={() => {}} />
+    </div>
+  )
+}
+
+// ─── Service Overview ─────────────────────────────────────────────────────────
+
+function ServiceOverview({
+  service,
+  agence,
+  direction,
+  onAddArmoire,
+  onOpenArmoire,
+}: {
+  service: Service
+  agence: Agence
+  direction: Direction
+  onAddArmoire: (dirId: string, agenceId: string, serviceId: string, data: { name: string; icon: string; admins: string[] }) => void
+  onOpenArmoire: (agence: Agence, service: Service, armoire: Armoire) => void
+}) {
+  const [armoirePanelOpen, setArmoirePanelOpen] = useState(false)
+  const [importPanelOpen, setImportPanelOpen] = useState(false)
+
+  const countServiceDocs = (serv: Service) => serv.armoires.reduce((a, arm) => a + arm.dossiers.reduce((b, dos) => b + dos.files.length, 0), 0)
+  const countPendingDocs = (serv: Service) => serv.armoires.reduce((a, arm) => a + arm.dossiers.reduce((b, dos) => b + dos.files.filter(f => f.status === "En validation").length, 0), 0)
+
+  const totalDocs = countServiceDocs(service)
+  const pendingDocs = countPendingDocs(service)
+
+  return (
+    <div className="flex-1 overflow-y-auto bg-muted/10 h-full">
+      <div className="p-8 max-w-6xl mx-auto space-y-8">
+        
+        {/* Header section inside main content */}
+        <div className="flex items-start justify-between gap-4 bg-card rounded-2xl p-6 border border-border">
+          <div className="flex items-center gap-5">
+            <div className="h-16 w-16 rounded-xl bg-black flex items-center justify-center flex-shrink-0">
+              <Users className="h-8 w-8 text-white" />
+            </div>
+            <div>
+              <h1 className="text-2xl font-bold text-foreground">{service.name}</h1>
+              <div className="flex items-center gap-2 mt-1">
+                 <span className="text-sm font-medium text-muted-foreground">Agence : {agence.name} • Direction : {direction.name}</span>
+              </div>
+            </div>
+          </div>
+          <Button className="h-10 gap-2 text-sm rounded-lg" variant="outline" onClick={() => setImportPanelOpen(true)}>
+            <Plus className="h-4 w-4" />
+            Ajouter un document
+          </Button>
+        </div>
+
+        {/* KPI Cards */}
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+          <div className="bg-muted/50 rounded-2xl p-6 flex flex-col items-center justify-center">
+            <FileText className="h-5 w-5 text-muted-foreground mb-3" />
+            <p className="text-3xl font-bold text-foreground">{totalDocs}</p>
+            <p className="text-xs font-medium text-muted-foreground mt-1">Documents</p>
+          </div>
+          <div className="bg-muted/50 rounded-2xl p-6 flex flex-col items-center justify-center">
+            <Users className="h-5 w-5 text-muted-foreground mb-3" />
+            <p className="text-3xl font-bold text-foreground">{direction.members || 8}</p>
+            <p className="text-xs font-medium text-muted-foreground mt-1">Membres</p>
+          </div>
+          <div className="bg-muted/50 rounded-2xl p-6 flex flex-col items-center justify-center">
+            <Archive className="h-5 w-5 text-muted-foreground mb-3" />
+            <p className="text-3xl font-bold text-foreground">{service.armoires.length}</p>
             <p className="text-xs font-medium text-muted-foreground mt-1">Armoires</p>
           </div>
           <div className="bg-muted/50 rounded-2xl p-6 flex flex-col items-center justify-center">
@@ -1027,7 +1438,7 @@ function AgenceOverview({
           <div className="flex items-center justify-between mb-6">
             <div className="flex items-center gap-2">
               <h2 className="text-lg font-bold text-foreground">Armoires</h2>
-              <span className="text-xs font-medium text-muted-foreground bg-muted px-2.5 py-0.5 rounded-full">{agence.armoires.length}</span>
+              <span className="text-xs font-medium text-muted-foreground bg-muted px-2.5 py-0.5 rounded-full">{service.armoires.length}</span>
             </div>
             <Button variant="outline" className="h-9 gap-1.5 text-xs rounded-lg" onClick={() => setArmoirePanelOpen(true)}>
               <Plus className="h-3.5 w-3.5" />
@@ -1035,10 +1446,10 @@ function AgenceOverview({
             </Button>
           </div>
 
-          {agence.armoires.length === 0 ? (
+          {service.armoires.length === 0 ? (
             <div className="text-center py-12 bg-card rounded-2xl border border-border">
               <Archive className="h-12 w-12 mx-auto text-muted-foreground/30 mb-4" />
-              <p className="text-sm font-medium text-muted-foreground mb-4">Aucune armoire dans cette agence</p>
+              <p className="text-sm font-medium text-muted-foreground mb-4">Aucune armoire dans ce service</p>
               <Button onClick={() => setArmoirePanelOpen(true)}>
                 <Plus className="h-4 w-4 mr-2" />
                 Ajouter une armoire
@@ -1046,12 +1457,12 @@ function AgenceOverview({
             </div>
           ) : (
             <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-5 gap-4">
-              {agence.armoires.map(armoire => {
+              {service.armoires.map(armoire => {
                 const IconComp = getIconComponent(armoire.icon || "archive")
                 return (
                   <div
                     key={armoire.id}
-                    onClick={() => onOpenArmoire(agence, armoire)}
+                    onClick={() => onOpenArmoire(agence, service, armoire)}
                     className="bg-card border border-border rounded-2xl p-6 flex flex-col items-center justify-center cursor-pointer hover:border-foreground/20 hover:shadow-sm transition-all group h-32"
                   >
                     <IconComp className="h-8 w-8 text-foreground mb-3" />
@@ -1068,8 +1479,7 @@ function AgenceOverview({
         open={armoirePanelOpen}
         onClose={() => setArmoirePanelOpen(false)}
         onSave={data => {
-          const realAgenceId = agence.id.startsWith('ag-') && agence.id.includes('-default') ? null : agence.id
-          onAddArmoire(direction.id, realAgenceId, data)
+          onAddArmoire(direction.id, agence.id, service.id, data)
           setArmoirePanelOpen(false)
         }}
       />
@@ -1107,18 +1517,20 @@ function DirectionDetail({
   const [selectedFiles, setSelectedFiles] = useState<Set<string>>(new Set())
 
   useEffect(() => {
+    const flatArmoires = direction.agences.flatMap(ag => ag.services.flatMap(svc => svc.armoires))
     const agence = direction.agences.find(ag => ag.id === selectedAgence.id) ||
-      (direction.armoires.length > 0 ? {
+      (flatArmoires.length > 0 ? {
         id: `ag-${direction.id}-default`,
         name: "Agence Principale",
         location: "Siege",
         description: "Agence principale",
-        armoires: direction.armoires,
+        services: [{ id: `svc-${direction.id}-default`, name: "Service Principal", armoires: flatArmoires }],
       } : null)
 
     if (agence) {
       setSelectedAgence(agence)
-      const armoire = agence.armoires.find(a => a.id === selectedArmoire.id)
+      const allArmoires = agence.services.flatMap(svc => svc.armoires)
+      const armoire = allArmoires.find(a => a.id === selectedArmoire.id)
       if (armoire) {
         setSelectedArmoire(armoire)
         if (selectedDossier) {
@@ -1489,11 +1901,6 @@ function FileList({
   )
 }
 
-
-type ViewState =
-  | { type: "overview"; direction: Direction; agence: Agence }
-  | { type: "armoire"; direction: Direction; agence: Agence; armoire: Armoire }
-
 export function DirectionView() {
   const searchParams = useSearchParams()
   const [directions, setDirections] = useState<Direction[]>([])
@@ -1501,10 +1908,11 @@ export function DirectionView() {
   const [viewState, setViewState] = useState<ViewState | null>(null)
   const [createPanelOpen, setCreatePanelOpen] = useState(false)
   const [createAgencePanelOpen, setCreateAgencePanelOpen] = useState(false)
+  const [serviceTargetAgence, setServiceTargetAgence] = useState<Agence | null>(null)
 
   useEffect(() => {
     setDirections(store.getDirections())
-    return store.subscribe(() => {
+    const unsubscribe = store.subscribe(() => {
       const dirs = store.getDirections()
       setDirections(dirs)
       if (selectedDirection) {
@@ -1513,21 +1921,29 @@ export function DirectionView() {
           setSelectedDirection(updated)
           if (viewState) {
             if (viewState.type === "overview") {
-              const agence = updated.agences.find(ag => ag.id === viewState.agence.id) ||
-                (updated.armoires.length > 0 ? { id: `ag-${updated.id}-default`, name: "Agence Principale", location: "Siege", description: "Agence principale", armoires: updated.armoires } : null)
+              const agence = updated.agences.find(ag => ag.id === viewState.agence.id)
               if (agence) setViewState({ type: "overview", direction: updated, agence })
-            } else if (viewState.type === "armoire") {
-              const agence = updated.agences.find(ag => ag.id === viewState.agence.id) ||
-                (updated.armoires.length > 0 ? { id: `ag-${updated.id}-default`, name: "Agence Principale", location: "Siege", description: "Agence principale", armoires: updated.armoires } : null)
+            } else if (viewState.type === "service") {
+              const agence = updated.agences.find(ag => ag.id === viewState.agence.id)
               if (agence) {
-                const armoire = agence.armoires.find(a => a.id === viewState.armoire.id)
-                if (armoire) setViewState({ type: "armoire", direction: updated, agence, armoire })
+                const service = agence.services.find(s => s.id === viewState.service.id)
+                if (service) setViewState({ type: "service", direction: updated, agence, service })
+              }
+            } else if (viewState.type === "armoire") {
+              const agence = updated.agences.find(ag => ag.id === viewState.agence.id)
+              if (agence) {
+                const service = agence.services.find(s => s.id === viewState.service.id)
+                if (service) {
+                  const armoire = service.armoires.find(a => a.id === viewState.armoire.id)
+                  if (armoire) setViewState({ type: "armoire", direction: updated, agence, service, armoire })
+                }
               }
             }
           }
         }
       }
     })
+    return () => { unsubscribe() }
   }, [selectedDirection, viewState])
 
   useEffect(() => {
@@ -1536,7 +1952,7 @@ export function DirectionView() {
       const direction = directions.find(d => d.name.toLowerCase().includes(directionParam.toLowerCase()))
       if (direction) {
         setSelectedDirection(direction)
-        const agence = direction.agences[0] || (direction.armoires.length > 0 ? { id: `ag-${direction.id}-default`, name: "Agence Principale", location: "Siege", description: "Agence principale", armoires: direction.armoires } : null)
+        const agence = direction.agences[0]
         if (agence) setViewState({ type: "overview", direction, agence })
       }
     }
@@ -1551,7 +1967,8 @@ export function DirectionView() {
         store.updateDirection(newDir.id, { description: data.description, directeur: data.directeur } as any)
       }
       setSelectedDirection(newDir)
-      const agence = newDir.agences[0] || (newDir.armoires.length > 0 ? { id: `ag-${newDir.id}-default`, name: "Agence Principale", location: "Siege", description: "Agence principale", armoires: newDir.armoires } : null)
+      const flatArms = newDir.agences.flatMap(ag => ag.services.flatMap(svc => svc.armoires))
+      const agence = newDir.agences[0] || (flatArms.length > 0 ? { id: `ag-${newDir.id}-default`, name: "Agence Principale", location: "Siege", description: "Agence principale", services: [{ id: `svc-${newDir.id}-default`, name: "Service Principal", armoires: flatArms }] } : null)
       if (agence) setViewState({ type: "overview", direction: newDir, agence })
     }
     setCreatePanelOpen(false)
@@ -1565,8 +1982,12 @@ export function DirectionView() {
     store.addAgence(dirId, data)
   }
 
-  const handleAddArmoire = (dirId: string, agenceId: string | null, data: { name: string; icon: string; admins: string[] }) => {
-    store.addArmoire(dirId, data.name, agenceId || undefined)
+  const handleAddService = (dirId: string, agenceId: string, data: { name: string; description: string }) => {
+    store.addService(dirId, agenceId, data)
+  }
+
+  const handleAddArmoire = (dirId: string, agenceId: string, serviceId: string, data: { name: string; icon: string; admins: string[] }) => {
+    store.addArmoire(dirId, serviceId, data.name)
   }
 
   const handleAddDossier = (dirId: string, armoireId: string, name: string) => {
@@ -1575,12 +1996,12 @@ export function DirectionView() {
 
   const handleSelectDirection = (dir: Direction) => {
     setSelectedDirection(dir)
-    const agence = dir.agences[0] || (dir.armoires.length > 0 ? { id: `ag-${dir.id}-default`, name: "Agence Principale", location: "Siege", description: "Agence principale", armoires: dir.armoires } : null)
+    const agence = dir.agences[0]
     if (agence) {
       setViewState({ type: "overview", direction: dir, agence })
     } else {
       // If no agences at all, create a dummy state so they can add an agence
-      const dummyAgence: Agence = { id: `ag-${dir.id}-default`, name: "Nouvelle Agence", location: "", description: "", armoires: [] }
+      const dummyAgence: Agence = { id: `ag-${dir.id}-default`, name: "Nouvelle Agence", location: "", description: "", services: [] }
       setViewState({ type: "overview", direction: dir, agence: dummyAgence })
     }
   }
@@ -1591,9 +2012,15 @@ export function DirectionView() {
     }
   }
 
-  const handleOpenArmoire = (agence: Agence, armoire: Armoire) => {
+  const handleOpenArmoire = (agence: Agence, service: Service, armoire: Armoire) => {
     if (selectedDirection) {
-      setViewState({ type: "armoire", direction: selectedDirection, agence, armoire })
+      setViewState({ type: "armoire", direction: selectedDirection, agence, service, armoire })
+    }
+  }
+
+  const handleOpenService = (agence: Agence, service: Service) => {
+    if (selectedDirection) {
+      setViewState({ type: "service", direction: selectedDirection, agence, service })
     }
   }
 
@@ -1604,7 +2031,13 @@ export function DirectionView() {
 
   const handleBackToOverview = () => {
     if (selectedDirection && viewState) {
-      setViewState({ type: "overview", direction: selectedDirection, agence: viewState.agence })
+      if (viewState.type === "armoire") {
+        // Go back to service view
+        setViewState({ type: "service", direction: selectedDirection, agence: viewState.agence, service: viewState.service })
+      } else if (viewState.type === "service") {
+        // Go back to agence view
+        setViewState({ type: "overview", direction: selectedDirection, agence: viewState.agence })
+      }
     }
   }
 
@@ -1614,9 +2047,11 @@ export function DirectionView() {
       {viewState && selectedDirection && (
         <AgenceSidebar
           direction={selectedDirection}
-          selectedAgence={viewState.agence}
+          viewState={viewState}
           onSelectAgence={handleSelectAgence}
+          onSelectService={handleOpenService}
           onAddAgence={() => setCreateAgencePanelOpen(true)}
+          onAddServiceInline={(ag) => setServiceTargetAgence(ag)}
           onBack={handleBackToList}
         />
       )}
@@ -1635,6 +2070,14 @@ export function DirectionView() {
         </div>
       ) : viewState.type === "overview" && selectedDirection ? (
         <AgenceOverview
+          agence={viewState.agence}
+          direction={selectedDirection}
+          onAddService={handleAddService}
+          onOpenService={handleOpenService}
+        />
+      ) : viewState.type === "service" && selectedDirection ? (
+        <ServiceOverview
+          service={viewState.service}
           agence={viewState.agence}
           direction={selectedDirection}
           onAddArmoire={handleAddArmoire}
@@ -1662,6 +2105,16 @@ export function DirectionView() {
           open={createAgencePanelOpen}
           onClose={() => setCreateAgencePanelOpen(false)}
           onSave={data => handleAddAgence(selectedDirection.id, data)}
+        />
+      )}
+      {selectedDirection && serviceTargetAgence && (
+        <ServicePanel
+          open={!!serviceTargetAgence}
+          onClose={() => setServiceTargetAgence(null)}
+          onSave={data => {
+            handleAddService(selectedDirection.id, serviceTargetAgence.id, data)
+            setServiceTargetAgence(null)
+          }}
         />
       )}
     </div>

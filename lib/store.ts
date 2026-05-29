@@ -42,12 +42,19 @@ export interface Armoire {
   dossiers: Dossier[]
 }
 
+export interface Service {
+  id: string
+  name: string
+  description?: string
+  armoires: Armoire[]
+}
+
 export interface Agence {
   id: string
   name: string
   location?: string
   description?: string
-  armoires: Armoire[]
+  services: Service[]
 }
 
 export interface Direction {
@@ -58,7 +65,6 @@ export interface Direction {
   members: number
   access: "Restreint" | "Interne" | "Public"
   agences: Agence[]
-  armoires: Armoire[]
 }
 
 export interface User {
@@ -146,14 +152,24 @@ const INITIAL_DIRECTIONS: Direction[] = [
     description: "Direction principale du groupe",
     members: 12,
     access: "Restreint",
-    agences: [],
-    armoires: [
+    agences: [
       {
-        id: "finance",
-        name: "Finance",
-        date: "25-03-2026",
-        description: "Documents comptables et financiers",
-        dossiers: [
+        id: "agence-siege",
+        name: "Agence Siège",
+        location: "Abidjan",
+        description: "Siège principal à Abidjan",
+        services: [
+          {
+            id: "service-finance",
+            name: "Service Finance",
+            description: "Gestion comptable et financière",
+            armoires: [
+              {
+                id: "finance",
+                name: "Finance",
+                date: "25-03-2026",
+                description: "Documents comptables et financiers",
+                dossiers: [
           {
             id: "factures-2026",
             name: "Factures 2026",
@@ -402,6 +418,10 @@ const INITIAL_DIRECTIONS: Direction[] = [
             ],
           },
         ],
+              },
+            ],
+          },
+        ],
       },
     ],
   },
@@ -412,19 +432,33 @@ const INITIAL_DIRECTIONS: Direction[] = [
     description: "Division technologique",
     members: 8,
     access: "Interne",
-    agences: [],
-    armoires: [
+    agences: [
       {
-        id: "projets-tech",
-        name: "Projets",
-        date: "25-03-2026",
-        dossiers: [],
-      },
-      {
-        id: "clients-silicon",
-        name: "Clients",
-        date: "25-03-2026",
-        dossiers: [],
+        id: "agence-silicon",
+        name: "Agence Technologique",
+        location: "Abidjan",
+        description: "Centre de développement technologique",
+        services: [
+          {
+            id: "service-projets",
+            name: "Service Projets",
+            description: "Gestion des projets technologiques",
+            armoires: [
+              {
+                id: "projets-tech",
+                name: "Projets",
+                date: "25-03-2026",
+                dossiers: [],
+              },
+              {
+                id: "clients-silicon",
+                name: "Clients",
+                date: "25-03-2026",
+                dossiers: [],
+              },
+            ],
+          },
+        ],
       },
     ],
   },
@@ -435,19 +469,33 @@ const INITIAL_DIRECTIONS: Direction[] = [
     description: "Operations internationales",
     members: 6,
     access: "Restreint",
-    agences: [],
-    armoires: [
+    agences: [
       {
-        id: "ops-yao",
-        name: "Operations",
-        date: "25-03-2026",
-        dossiers: [],
-      },
-      {
-        id: "archives-yao",
-        name: "Archives",
-        date: "25-03-2026",
-        dossiers: [],
+        id: "agence-yao",
+        name: "Agence YAO",
+        location: "International",
+        description: "Opérations internationales",
+        services: [
+          {
+            id: "service-ops-yao",
+            name: "Service Opérations",
+            description: "Opérations internationales",
+            armoires: [
+              {
+                id: "ops-yao",
+                name: "Operations",
+                date: "25-03-2026",
+                dossiers: [],
+              },
+              {
+                id: "archives-yao",
+                name: "Archives",
+                date: "25-03-2026",
+                dossiers: [],
+              },
+            ],
+          },
+        ],
       },
     ],
   },
@@ -458,8 +506,15 @@ const INITIAL_DIRECTIONS: Direction[] = [
     description: "Services support et administratifs",
     members: 15,
     access: "Interne",
-    agences: [],
-    armoires: [],
+    agences: [
+      {
+        id: "agence-centraux",
+        name: "Agence Centrale",
+        location: "Siège",
+        description: "Services centraux du groupe",
+        services: [],
+      },
+    ],
   },
   {
     id: "logistique",
@@ -468,8 +523,15 @@ const INITIAL_DIRECTIONS: Direction[] = [
     description: "Logistique et operations",
     members: 10,
     access: "Interne",
-    agences: [],
-    armoires: [],
+    agences: [
+      {
+        id: "agence-logistique",
+        name: "Agence Logistique",
+        location: "Abidjan",
+        description: "Opérations logistiques",
+        services: [],
+      },
+    ],
   },
   {
     id: "ressources-humaines",
@@ -478,8 +540,15 @@ const INITIAL_DIRECTIONS: Direction[] = [
     description: "Direction RH centrale",
     members: 5,
     access: "Restreint",
-    agences: [],
-    armoires: [],
+    agences: [
+      {
+        id: "agence-rh-centrale",
+        name: "Agence RH Centrale",
+        location: "Siège",
+        description: "Ressources humaines centralisées",
+        services: [],
+      },
+    ],
   },
 ]
 
@@ -608,7 +677,9 @@ class Store {
     this.listeners.forEach(l => l())
   }
   private flattenArmoires(direction: Direction) {
-    return direction.agences.flatMap(agence => agence.armoires)
+    return direction.agences.flatMap(agence => 
+      agence.services.flatMap(service => service.armoires)
+    )
   }
 
   private withFlattenedArmoires(direction: Direction) {
@@ -626,7 +697,6 @@ class Store {
       members: 0,
       access: "Interne",
       agences: [],
-      armoires: [],
     }
     this.directions = [...this.directions, dir]
     this.addAuditLog("Direction creee", "C. Boka", name, "direction")
@@ -648,7 +718,7 @@ class Store {
 
   // ─── Armoires ───────────────────────────────────────────────────────────────
 
-  addArmoire(directionId: string, name: string, agenceId?: string) {
+  addArmoire(directionId: string, serviceId: string, name: string) {
     const armoire: Armoire = {
       id: `arm-${Date.now()}`,
       name,
@@ -657,24 +727,14 @@ class Store {
     }
     this.directions = this.directions.map(d => {
       if (d.id !== directionId) return d
-      let agences = d.agences
-      if (!agenceId && agences.length === 0) {
-        agences = [
-          {
-            id: `ag-${Date.now()}`,
-            name: "Agence principale",
-            location: "Siege",
-            description: "Agence principale",
-            armoires: [armoire],
-          },
-        ]
-      } else {
-        agences = agences.map(ag =>
-          ag.id === (agenceId ?? agences[0]?.id)
-            ? { ...ag, armoires: [...ag.armoires, armoire] }
-            : ag
+      const agences = d.agences.map(ag => ({
+        ...ag,
+        services: ag.services.map(svc =>
+          svc.id === serviceId
+            ? { ...svc, armoires: [...svc.armoires, armoire] }
+            : svc
         )
-      }
+      }))
       return { ...d, agences, armoires: this.flattenArmoires({ ...d, agences }) }
     })
     this.addAuditLog("Armoire creee", "C. Boka", name, "armoire")
@@ -688,7 +748,7 @@ class Store {
       name: data.name,
       location: data.location || "",
       description: data.description || "",
-      armoires: [],
+      services: [],
     }
     this.directions = this.directions.map(d =>
       d.id === directionId
@@ -700,12 +760,36 @@ class Store {
     return agence
   }
 
+  addService(directionId: string, agenceId: string, data: { name: string; description?: string }) {
+    const service: Service = {
+      id: `svc-${Date.now()}`,
+      name: data.name,
+      description: data.description || "",
+      armoires: [],
+    }
+    this.directions = this.directions.map(d => {
+      if (d.id !== directionId) return d
+      const agences = d.agences.map(ag =>
+        ag.id === agenceId
+          ? { ...ag, services: [...ag.services, service] }
+          : ag
+      )
+      return { ...d, agences, armoires: this.flattenArmoires({ ...d, agences }) }
+    })
+    this.addAuditLog("Service cree", "C. Boka", data.name, "service")
+    this.notify()
+    return service
+  }
+
   deleteArmoire(directionId: string, armoireId: string) {
     this.directions = this.directions.map(d => {
       if (d.id !== directionId) return d
       const agences = d.agences.map(ag => ({
         ...ag,
-        armoires: ag.armoires.filter(a => a.id !== armoireId),
+        services: ag.services.map(svc => ({
+          ...svc,
+          armoires: svc.armoires.filter(a => a.id !== armoireId)
+        }))
       }))
       return { ...d, agences, armoires: this.flattenArmoires({ ...d, agences }) }
     })
@@ -723,20 +807,16 @@ class Store {
     }
     this.directions = this.directions.map(d => {
       if (d.id !== directionId) return d
-      if (d.agences.length > 0) {
-        const agences = d.agences.map(ag => ({
-          ...ag,
-          armoires: ag.armoires.map(a =>
+      const agences = d.agences.map(ag => ({
+        ...ag,
+        services: ag.services.map(svc => ({
+          ...svc,
+          armoires: svc.armoires.map(a =>
             a.id === armoireId ? { ...a, dossiers: [...a.dossiers, dossier] } : a
-          ),
+          )
         }))
-        return { ...d, agences, armoires: this.flattenArmoires({ ...d, agences }) }
-      }
-
-      const armoires = d.armoires.map(a =>
-        a.id === armoireId ? { ...a, dossiers: [...a.dossiers, dossier] } : a
-      )
-      return { ...d, armoires }
+      }))
+      return { ...d, agences, armoires: this.flattenArmoires({ ...d, agences }) }
     })
     this.addAuditLog("Dossier cree", "C. Boka", name, "dossier")
     this.notify()
@@ -777,10 +857,11 @@ class Store {
     this.directions = this.directions.map(d => {
       if (d.id !== directionId) return d
 
-      if (d.agences.length > 0) {
-        const agences = d.agences.map(ag => ({
-          ...ag,
-          armoires: ag.armoires.map(a =>
+      const agences = d.agences.map(ag => ({
+        ...ag,
+        services: ag.services.map(svc => ({
+          ...svc,
+          armoires: svc.armoires.map(a =>
             a.id === armoireId
               ? {
                   ...a,
@@ -789,22 +870,10 @@ class Store {
                   ),
                 }
               : a
-          ),
+          )
         }))
-        return { ...d, agences, armoires: this.flattenArmoires({ ...d, agences }) }
-      }
-
-      const armoires = d.armoires.map(a =>
-        a.id === armoireId
-          ? {
-              ...a,
-              dossiers: a.dossiers.map(dos =>
-                dos.id === dossierId ? { ...dos, files: [...dos.files, ...docs] } : dos
-              ),
-            }
-          : a
-      )
-      return { ...d, armoires }
+      }))
+      return { ...d, agences, armoires: this.flattenArmoires({ ...d, agences }) }
     })
 
     this.addAuditLog(
@@ -821,11 +890,18 @@ class Store {
       d.id === directionId
         ? {
             ...d,
-            armoires: d.armoires.map(a =>
-              a.id === armoireId
-                ? { ...a, dossiers: a.dossiers.filter(dos => dos.id !== dossierId) }
-                : a
-            ),
+            agences: d.agences.map(ag => ({
+              ...ag,
+              services: ag.services.map(svc => ({
+                ...svc,
+                armoires: svc.armoires.map(a =>
+                  a.id === armoireId
+                    ? { ...a, dossiers: a.dossiers.filter(dos => dos.id !== dossierId) }
+                    : a
+                )
+              }))
+            })),
+            armoires: this.flattenArmoires({ ...d, agences: d.agences })
           }
         : d
     )
@@ -837,9 +913,13 @@ class Store {
   getAllDocuments(): DocFile[] {
     const docs: DocFile[] = []
     for (const dir of this.directions) {
-      for (const arm of dir.armoires) {
-        for (const dos of arm.dossiers) {
-          docs.push(...dos.files)
+      for (const agence of dir.agences) {
+        for (const service of agence.services) {
+          for (const arm of service.armoires) {
+            for (const dos of arm.dossiers) {
+              docs.push(...dos.files)
+            }
+          }
         }
       }
     }
@@ -858,13 +938,20 @@ class Store {
     }
     this.directions = this.directions.map(d => ({
       ...d,
-      armoires: d.armoires.map(a => ({
-        ...a,
-        dossiers: a.dossiers.map(dos => ({
-          ...dos,
-          files: dos.files.filter(f => f.id !== docId),
-        })),
+      agences: d.agences.map(ag => ({
+        ...ag,
+        services: ag.services.map(svc => ({
+          ...svc,
+          armoires: svc.armoires.map(a => ({
+            ...a,
+            dossiers: a.dossiers.map(dos => ({
+              ...dos,
+              files: dos.files.filter(f => f.id !== docId),
+            })),
+          }))
+        }))
       })),
+      armoires: this.flattenArmoires({ ...d, agences: d.agences })
     }))
     this.notify()
   }
@@ -1021,18 +1108,22 @@ class Store {
   getAllDocumentsWithContext() {
     const result: (DocFile & { directionId: string; directionName: string; armoireId: string; armoireName: string; dossierId: string; dossierName: string })[] = []
     for (const dir of this.directions) {
-      for (const arm of dir.armoires) {
-        for (const dos of arm.dossiers) {
-          for (const file of dos.files) {
-            result.push({
-              ...file,
-              directionId: dir.id,
-              directionName: dir.name,
-              armoireId: arm.id,
-              armoireName: arm.name,
-              dossierId: dos.id,
-              dossierName: dos.name,
-            })
+      for (const agence of dir.agences) {
+        for (const service of agence.services) {
+          for (const arm of service.armoires) {
+            for (const dos of arm.dossiers) {
+              for (const file of dos.files) {
+                result.push({
+                  ...file,
+                  directionId: dir.id,
+                  directionName: dir.name,
+                  armoireId: arm.id,
+                  armoireName: arm.name,
+                  dossierId: dos.id,
+                  dossierName: dos.name,
+                })
+              }
+            }
           }
         }
       }
@@ -1043,10 +1134,14 @@ class Store {
   getFournisseurs() {
     const set = new Set<string>()
     for (const dir of this.directions) {
-      for (const arm of dir.armoires) {
-        for (const dos of arm.dossiers) {
-          for (const file of dos.files) {
-            if (file.fournisseur) set.add(file.fournisseur)
+      for (const agence of dir.agences) {
+        for (const service of agence.services) {
+          for (const arm of service.armoires) {
+            for (const dos of arm.dossiers) {
+              for (const file of dos.files) {
+                if (file.fournisseur) set.add(file.fournisseur)
+              }
+            }
           }
         }
       }
@@ -1058,11 +1153,23 @@ class Store {
 
   getStats() {
     const allDocs = this.getAllDocuments()
+    let totalArmoires = 0
+    let totalDossiers = 0
+    for (const dir of this.directions) {
+      for (const agence of dir.agences) {
+        for (const service of agence.services) {
+          totalArmoires += service.armoires.length
+          for (const arm of service.armoires) {
+            totalDossiers += arm.dossiers.length
+          }
+        }
+      }
+    }
     return {
       totalDocs: allDocs.length,
       totalDirections: this.directions.length,
-      totalArmoires: this.directions.reduce((a, d) => a + d.armoires.length, 0),
-      totalDossiers: this.directions.reduce((a, d) => a + d.armoires.reduce((b, arm) => b + arm.dossiers.length, 0), 0),
+      totalArmoires,
+      totalDossiers,
       totalUsers: this.users.length,
       activeWorkflows: this.workflows.filter(w => w.active).length,
       pendingDocs: allDocs.filter(d => d.status === "En attente" || d.status === "En validation").length,
