@@ -1,6 +1,7 @@
 "use client"
 
 import React, { useState } from "react"
+import { useRouter } from "next/navigation"
 import {
   X, FileText, File, FileSpreadsheet, Image,
   Download, Pencil, Send, Trash2, ExternalLink,
@@ -10,6 +11,7 @@ import {
   ChevronRight, Eye, RotateCcw, GitCompare,
   Lock, Unlock, MessageSquare, ThumbsUp, ThumbsDown,
   AlertTriangle, Shield, Stamp, RefreshCw,
+  ZoomIn, ZoomOut,
 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { cn } from "@/lib/utils"
@@ -41,6 +43,7 @@ const typeConfig: Record<DocFile["type"], { label: string; icon: React.ElementTy
 }
 
 const TABS = [
+  { id: "preview", label: "Aperçu",      icon: Eye },
   { id: "info",     label: "Informations", icon: Info },
   { id: "versions", label: "Versions",     icon: History },
   { id: "workflow", label: "Workflow",     icon: GitBranch },
@@ -65,7 +68,161 @@ function ConfidenceBadge({ score }: { score: number }) {
     </span>
   )
 }
+// ─── Document Preview ─────────────────────────────────────────────────────
 
+function DocumentPreview({ file }: { file: DocFile }) {
+  const [zoom, setZoom] = useState(100)
+
+  const isImage = file.type === "img"
+  const isPDF = file.type === "pdf"
+  const isWord = file.type === "docx"
+  const isExcel = file.type === "xlsx"
+
+  // Mock content for demonstration
+  const mockPDFContent = `
+    ╔════════════════════════════════════════════════════════════╗
+    ║                        DOCUMENT                            ║
+    ║                                                            ║
+    ║  Titre: ${file.name}
+    ║                                                            ║
+    ║  Type: ${file.type.toUpperCase()}                                      ║
+    ║  Taille: ${file.size}                                         ║
+    ║  Date: ${file.date}                                    ║
+    ║  Auteur: ${file.author}                                   ║
+    ║                                                            ║
+    ║  Confiance OCR: ${file.confidence}%                             ║
+    ║                                                            ║
+    ╚════════════════════════════════════════════════════════════╝
+    
+    Contenu du document simulé pour la prévisualisation.
+    
+    Ce document contient des informations importantes.
+    Vous pouvez le télécharger pour voir le contenu complet.
+  `
+
+  return (
+    <div className="space-y-3">
+      <div className="flex items-center justify-between">
+        <p className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
+          Aperçu du document
+        </p>
+        <div className="flex items-center gap-1">
+          <Button
+            variant="ghost"
+            size="icon"
+            className="h-6 w-6"
+            onClick={() => setZoom(z => Math.max(50, z - 25))}
+          >
+            <ZoomOut className="h-3 w-3" />
+          </Button>
+          <span className="text-[10px] text-muted-foreground w-8 text-center">{zoom}%</span>
+          <Button
+            variant="ghost"
+            size="icon"
+            className="h-6 w-6"
+            onClick={() => setZoom(z => Math.min(200, z + 25))}
+          >
+            <ZoomIn className="h-3 w-3" />
+          </Button>
+        </div>
+      </div>
+
+      <div className="rounded border border-border bg-white overflow-hidden flex items-center justify-center min-h-96">
+        {isImage ? (
+          // Image preview
+          <div 
+            className="flex items-center justify-center bg-gradient-to-br from-blue-50 to-blue-100 w-full h-full"
+            style={{ minHeight: "400px" }}
+          >
+            <div className="flex flex-col items-center gap-3 p-4">
+              <Image className="h-24 w-24 text-blue-400" />
+              <div className="text-center">
+                <p className="text-sm font-medium text-foreground">{file.name}</p>
+                <p className="text-xs text-muted-foreground mt-1">Image ({file.size})</p>
+                <p className="text-xs text-muted-foreground mt-2">Cliquez sur "Ouvrir" pour voir l'image complète</p>
+              </div>
+            </div>
+          </div>
+        ) : isPDF ? (
+          // PDF preview
+          <div 
+            className="w-full bg-gradient-to-br from-red-50 to-red-100 p-6 text-xs font-mono leading-relaxed overflow-y-auto"
+            style={{ minHeight: "400px", maxHeight: "400px" }}
+          >
+            <pre className="text-muted-foreground whitespace-pre-wrap break-words text-[11px]">
+              {mockPDFContent}
+            </pre>
+          </div>
+        ) : isWord ? (
+          // Word document preview
+          <div 
+            className="w-full bg-blue-50 p-6 text-xs leading-relaxed overflow-y-auto"
+            style={{ minHeight: "400px", maxHeight: "400px" }}
+          >
+            <div className="space-y-4 text-muted-foreground">
+              <h2 className="text-lg font-bold text-foreground">{file.name}</h2>
+              <p>
+                Ceci est une prévisualisation du document Word "{file.name}".
+              </p>
+              <p>
+                Taille: {file.size} | Type: {file.type.toUpperCase()} | Date: {file.date}
+              </p>
+              <p>
+                Pour visualiser le contenu complet, cliquez sur le bouton "Ouvrir" ou téléchargez le document.
+              </p>
+            </div>
+          </div>
+        ) : isExcel ? (
+          // Excel preview
+          <div 
+            className="w-full bg-green-50 p-6 text-xs leading-relaxed overflow-y-auto"
+            style={{ minHeight: "400px", maxHeight: "400px" }}
+          >
+            <div className="space-y-2">
+              <div className="inline-block">
+                <table className="border-collapse text-[10px]">
+                  <thead>
+                    <tr>
+                      <th className="border border-green-300 bg-green-100 px-2 py-1">Col 1</th>
+                      <th className="border border-green-300 bg-green-100 px-2 py-1">Col 2</th>
+                      <th className="border border-green-300 bg-green-100 px-2 py-1">Col 3</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    <tr>
+                      <td className="border border-green-200 px-2 py-1">Donnée 1</td>
+                      <td className="border border-green-200 px-2 py-1">Donnée 2</td>
+                      <td className="border border-green-200 px-2 py-1">Donnée 3</td>
+                    </tr>
+                    <tr>
+                      <td className="border border-green-200 px-2 py-1">Donnée 4</td>
+                      <td className="border border-green-200 px-2 py-1">Donnée 5</td>
+                      <td className="border border-green-200 px-2 py-1">Donnée 6</td>
+                    </tr>
+                  </tbody>
+                </table>
+              </div>
+              <p className="text-muted-foreground mt-4">
+                Fichier: {file.name} | Taille: {file.size}
+              </p>
+            </div>
+          </div>
+        ) : (
+          // Generic file preview
+          <div className="flex flex-col items-center gap-2 p-8">
+            <File className="h-16 w-16 text-muted-foreground/40" />
+            <p className="text-sm text-muted-foreground text-center">{file.name}</p>
+            <p className="text-xs text-muted-foreground">{file.type.toUpperCase()} • {file.size}</p>
+          </div>
+        )}
+      </div>
+
+      <p className="text-[9px] text-muted-foreground text-center">
+        ℹ️ Cliquez sur "Ouvrir" pour voir le document en plein écran avec tous les détails
+      </p>
+    </div>
+  )
+}
 // ─── Tab: Informations ────────────────────────────────────────────────────────
 
 function TabInfo({ file, context }: { file: DocFile; context: DocumentDetailPanelProps["context"] }) {
@@ -599,8 +756,9 @@ function TabActivity({ file }: { file: DocFile }) {
 // ─── Main Component ───────────────────────────────────────────────────────────
 
 export function DocumentDetailPanel({ file, context, onClose }: DocumentDetailPanelProps) {
-  const [activeTab, setActiveTab] = useState<TabId>("info")
+  const [activeTab, setActiveTab] = useState<TabId>("preview")
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false)
+  const router = useRouter()
 
   const status   = statusConfig[file.status]
   const StatusIcon = status.icon
@@ -642,7 +800,10 @@ export function DocumentDetailPanel({ file, context, onClose }: DocumentDetailPa
         <div className="px-5 py-3 border-b border-border bg-card flex-shrink-0">
           <div className="flex items-center gap-2 flex-wrap">
             <Button variant="default" size="sm" className="h-8 gap-1.5 text-xs rounded"
-              onClick={() => toast.info("Ouverture du fichier...")}>
+              onClick={() => {
+                onClose()
+                router.push(`/document/${file.id}`)
+              }}>
               <ExternalLink className="h-3.5 w-3.5" />Ouvrir
             </Button>
             <Button variant="outline" size="sm" className="h-8 gap-1.5 text-xs rounded"
@@ -693,6 +854,7 @@ export function DocumentDetailPanel({ file, context, onClose }: DocumentDetailPa
 
         {/* Tab content */}
         <div className="flex-1 overflow-y-auto p-5">
+          {activeTab === "preview"  && <DocumentPreview file={file} />}
           {activeTab === "info"     && <TabInfo     file={file} context={context} />}
           {activeTab === "versions" && <TabVersions file={file} />}
           {activeTab === "workflow" && <TabWorkflow file={file} />}

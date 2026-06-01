@@ -6,7 +6,7 @@ import {
   Search, FileText, Download, Eye, X, Mail, GitBranch,
   CheckCircle2, Clock, AlertCircle, XCircle, Building2,
   Tag, Hash, User, Filter, ChevronDown, ChevronUp,
-  FileSpreadsheet, FileImage, ArrowUpDown, ExternalLink,
+  FileSpreadsheet, FileImage, ArrowUpDown,
   Bookmark, BookmarkCheck, Calendar, Sparkles,
 } from "lucide-react"
 import { Input } from "@/components/ui/input"
@@ -14,8 +14,9 @@ import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { cn } from "@/lib/utils"
-import Link from "next/link"
 import { store } from "@/lib/store"
+import { DocumentDetailPanel } from "@/components/document-detail-panel"
+import { type DocFile } from "@/lib/store"
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -332,149 +333,6 @@ function FilterPanel({
   )
 }
 
-// ─── Preview Panel (right) ────────────────────────────────────────────────────
-
-function PreviewPanel({ doc, query, onClose }: { doc: SearchDoc; query: string; onClose: () => void }) {
-  const status = STATUS_CONFIG[doc.status]
-  const StatusIcon = status.icon
-  const TypeIcon = TYPE_ICON[doc.type] ?? FileText
-
-  return (
-    <aside className="w-80 flex-shrink-0 border-l border-border bg-card flex flex-col animate-in slide-in-from-right duration-200">
-      {/* Header */}
-      <div className="flex items-center justify-between px-4 py-3 border-b border-border flex-shrink-0">
-        <div className="flex items-center gap-2 min-w-0">
-          <div className={cn("h-7 w-7 rounded flex items-center justify-center flex-shrink-0", TYPE_COLOR[doc.type] ?? "bg-muted text-foreground")}>
-            <TypeIcon className="h-3.5 w-3.5" />
-          </div>
-          <p className="text-xs font-semibold text-foreground truncate">{doc.name}</p>
-        </div>
-        <Button variant="ghost" size="icon" className="h-7 w-7 flex-shrink-0" onClick={onClose}>
-          <X className="h-3.5 w-3.5" />
-        </Button>
-      </div>
-
-      {/* Scrollable body */}
-      <div className="flex-1 overflow-y-auto">
-        {/* Preview zone with OCR highlight */}
-        <div className="bg-muted/40 p-4 border-b border-border">
-          <p className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground mb-2">Apercu du contenu</p>
-          {doc.ocrContent ? (
-            <div className="bg-background rounded p-3 text-[11px] leading-relaxed text-muted-foreground border border-border">
-              <Highlight text={doc.ocrContent} query={query} />
-            </div>
-          ) : (
-            <div className="bg-background rounded p-6 flex flex-col items-center gap-2 border border-border">
-              <TypeIcon className="h-8 w-8 text-muted-foreground/30" />
-              <p className="text-[10px] text-muted-foreground">Apercu non disponible</p>
-            </div>
-          )}
-        </div>
-
-        {/* Quick actions */}
-        <div className="flex gap-2 p-3 border-b border-border">
-          <Button size="sm" className="flex-1 h-8 gap-1.5 text-xs" asChild>
-            <Link href={`/document/${doc.id}`}>
-              <Eye className="h-3.5 w-3.5" /> Ouvrir
-            </Link>
-          </Button>
-          <Button size="sm" variant="outline" className="flex-1 h-8 gap-1.5 text-xs">
-            <Download className="h-3.5 w-3.5" /> Telecharger
-          </Button>
-          <Button size="sm" variant="outline" className="h-8 w-8 p-0" asChild>
-            <Link href={`/document/${doc.id}`} target="_blank">
-              <ExternalLink className="h-3.5 w-3.5" />
-            </Link>
-          </Button>
-        </div>
-
-        {/* Metadata */}
-        <div className="p-3 space-y-3">
-          {/* Status + Type */}
-          <div className="flex items-center gap-1.5 flex-wrap">
-            <span className={cn("inline-flex items-center gap-1 rounded px-2 py-0.5 text-[10px] font-medium", status.cls)}>
-              <StatusIcon className="h-2.5 w-2.5" /> {status.label}
-            </span>
-            <span className={cn("inline-flex items-center rounded px-2 py-0.5 text-[10px] font-medium", TYPE_COLOR[doc.type] ?? "bg-muted text-foreground")}>
-              {doc.type.toUpperCase()}
-            </span>
-          </div>
-
-          {/* Invoice fields */}
-          {(doc.fournisseur || doc.montant != null || doc.numero) && (
-            <div className="bg-muted/50 rounded p-2.5 space-y-1.5">
-              <p className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">Facture</p>
-              {doc.numero && <div className="flex justify-between text-[11px]"><span className="text-muted-foreground">N°</span><span className="font-mono font-medium">{doc.numero}</span></div>}
-              {doc.fournisseur && <div className="flex justify-between text-[11px]"><span className="text-muted-foreground">Fournisseur</span><span className="font-medium">{doc.fournisseur}</span></div>}
-              {doc.montant != null && <div className="flex justify-between text-[11px]"><span className="text-muted-foreground">Montant</span><span className="font-semibold text-foreground">{formatMontant(doc.montant)}</span></div>}
-            </div>
-          )}
-
-          {/* Info grid */}
-          <div className="grid grid-cols-2 gap-1.5">
-            {[
-              { icon: Building2, label: "Direction", value: doc.directionName },
-              { icon: Tag,       label: "Armoire",   value: doc.armoireName },
-              { icon: Calendar,  label: "Date",      value: doc.date },
-              { icon: User,      label: "Auteur",    value: doc.author },
-              { icon: Hash,      label: "OCR",       value: `${doc.confidence}%` },
-            ].map(({ icon: Icon, label, value }) => (
-              <div key={label} className="p-2 bg-muted/40 rounded">
-                <p className="text-[9px] text-muted-foreground mb-0.5 uppercase tracking-wider">{label}</p>
-                <div className="flex items-center gap-1 text-[11px] font-medium text-foreground">
-                  <Icon className="h-2.5 w-2.5 text-muted-foreground flex-shrink-0" />
-                  <span className="truncate">{value}</span>
-                </div>
-              </div>
-            ))}
-          </div>
-
-          {/* Description */}
-          {doc.description && (
-            <div>
-              <p className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground mb-1">Description</p>
-              <p className="text-[11px] text-muted-foreground leading-relaxed">
-                <Highlight text={doc.description} query={query} />
-              </p>
-            </div>
-          )}
-
-          {/* Tags */}
-          {doc.tags.length > 0 && (
-            <div>
-              <p className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground mb-1">Tags</p>
-              <div className="flex flex-wrap gap-1">
-                {doc.tags.map(tag => (
-                  <span key={tag} className="text-[10px] px-1.5 py-0.5 rounded bg-muted text-muted-foreground">{tag}</span>
-                ))}
-              </div>
-            </div>
-          )}
-
-          {/* Source */}
-          {(doc.linkedEmail || doc.linkedWorkflow) && (
-            <div>
-              <p className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground mb-1">Source</p>
-              <div className="space-y-1">
-                {doc.linkedEmail && (
-                  <p className="text-[11px] text-muted-foreground flex items-center gap-1.5">
-                    <Mail className="h-2.5 w-2.5" /> {doc.linkedEmail}
-                  </p>
-                )}
-                {doc.linkedWorkflow && (
-                  <p className="text-[11px] text-muted-foreground flex items-center gap-1.5">
-                    <GitBranch className="h-2.5 w-2.5" /> {doc.linkedWorkflow}
-                  </p>
-                )}
-              </div>
-            </div>
-          )}
-        </div>
-      </div>
-    </aside>
-  )
-}
-
 // ─── Results Table ─────────────────────────────────────────────────────────────
 
 type SortKey = "date" | "name" | "montant" | "status" | "fournisseur"
@@ -610,10 +468,13 @@ function ResultsTable({
                 {/* Actions */}
                 <td className="px-2 py-2.5">
                   <div className="flex items-center gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity">
-                    <Button variant="ghost" size="icon" className="h-6 w-6" asChild>
-                      <Link href={`/document/${doc.id}`}>
-                        <Eye className="h-3 w-3" />
-                      </Link>
+                    <Button 
+                      variant="ghost" 
+                      size="icon" 
+                      className="h-6 w-6"
+                      onClick={() => onSelect(isActive ? null : doc)}
+                    >
+                      <Eye className="h-3 w-3" />
                     </Button>
                     <Button variant="ghost" size="icon" className="h-6 w-6">
                       <Download className="h-3 w-3" />
@@ -749,6 +610,7 @@ export function SearchPage() {
   const [armoires, setArmoires] = useState<string[]>([])
   const [filters, setFilters] = useState<Filters>({ ...EMPTY_FILTERS, query: searchParams.get("q") ?? "" })
   const [selectedDoc, setSelectedDoc] = useState<SearchDoc | null>(null)
+  const [selectedDocFile, setSelectedDocFile] = useState<DocFile | null>(null)
   const [showSuggest, setShowSuggest] = useState(false)
   const [savedList, setSavedList] = useState<string[]>(RECENT_SEARCHES)
   const [saveSuccess, setSaveSuccess] = useState(false)
@@ -779,6 +641,16 @@ export function SearchPage() {
     document.addEventListener("mousedown", handler)
     return () => document.removeEventListener("mousedown", handler)
   }, [])
+
+  // Load full DocFile when selectedDoc changes
+  useEffect(() => {
+    if (selectedDoc) {
+      const docFile = store.getDocument(selectedDoc.id)
+      setSelectedDocFile(docFile || null)
+    } else {
+      setSelectedDocFile(null)
+    }
+  }, [selectedDoc])
 
   const setFilter = useCallback((k: keyof Filters, v: string) => {
     setFilters(prev => ({ ...prev, [k]: v }))
@@ -943,10 +815,10 @@ export function SearchPage() {
       </div>
 
       {/* Right: preview panel */}
-      {selectedDoc && (
-        <PreviewPanel
-          doc={selectedDoc}
-          query={filters.query || filters.fournisseur}
+      {selectedDoc && selectedDocFile && (
+        <DocumentDetailPanel
+          file={selectedDocFile}
+          context={{ direction: selectedDoc.directionName, armoire: selectedDoc.armoireName, dossier: selectedDoc.dossierName }}
           onClose={() => setSelectedDoc(null)}
         />
       )}

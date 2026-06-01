@@ -1,6 +1,11 @@
+"use client"
+
+import { useState, useEffect } from "react"
 import { Eye, Download, MoreHorizontal, Mail } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
+import { store, type DocFile } from "@/lib/store"
+import { DocumentDetailPanel } from "@/components/document-detail-panel"
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -8,13 +13,11 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
 
-const documents = [
-  { id: "DOC-2841", name: "Facture TOTAL Energie — Avr. 2026", armoire: "Finance", type: "Facture", date: "23 Avr 2026", status: "Approuve", source: "email", path: "Finance/Factures/2026/Avril" },
-  { id: "DOC-2840", name: "Contrat CDI — Jean-Marc Boka", armoire: "RH", type: "Contrat", date: "22 Avr 2026", status: "En validation", source: "upload", path: "RH/Contrats/CDI" },
-  { id: "DOC-2839", name: "Rapport Audit Q1 2026", armoire: "Juridique", type: "Rapport", date: "20 Avr 2026", status: "En attente", source: "upload", path: "Juridique/Rapports/2026/Q1" },
-  { id: "DOC-2838", name: "Bon de commande #7821", armoire: "Finance", type: "Commande", date: "18 Avr 2026", status: "Approuve", source: "email", path: "Finance/Commandes/2026" },
-  { id: "DOC-2837", name: "Procedure Securite Incendie", armoire: "General", type: "Procedure", date: "15 Avr 2026", status: "Rejete", source: "upload", path: "General/Procedures/Securite" },
-]
+// Get recent documents from store with context
+function getRecentDocuments() {
+  const allDocs = store.getAllDocumentsWithContext()
+  return allDocs.slice(0, 5)
+}
 
 const statusStyles: Record<string, string> = {
   "Approuve": "bg-foreground text-background",
@@ -24,6 +27,42 @@ const statusStyles: Record<string, string> = {
 }
 
 export function DocumentsTable() {
+  const [selectedFile, setSelectedFile] = useState<DocFile | null>(null)
+  const [selectedContext, setSelectedContext] = useState<{ direction: string; armoire: string; dossier: string } | null>(null)
+  const [documents, setDocuments] = useState<any[]>([])
+
+  useEffect(() => {
+    setDocuments(getRecentDocuments())
+  }, [])
+
+  const handleOpenFile = (docId: string, doc: any) => {
+    const docFile = store.getDocument(docId)
+    if (docFile) {
+      setSelectedFile(docFile)
+      setSelectedContext({
+        direction: doc.directionName,
+        armoire: doc.armoireName,
+        dossier: doc.dossierName,
+      })
+    }
+  }
+
+  if (documents.length === 0) {
+    return (
+      <div className="rounded-2xl border border-border bg-card overflow-hidden">
+        <div className="px-5 py-4 border-b border-border flex items-center justify-between">
+          <div>
+            <h2 className="text-sm font-semibold text-foreground">Documents recents</h2>
+            <p className="text-xs text-muted-foreground mt-0.5">Derniers documents integres dans la GED</p>
+          </div>
+        </div>
+        <div className="px-5 py-8 text-center text-sm text-muted-foreground">
+          Aucun document trouve
+        </div>
+      </div>
+    )
+  }
+
   return (
     <div className="rounded-2xl border border-border bg-card overflow-hidden">
       <div className="px-5 py-4 border-b border-border flex items-center justify-between">
@@ -58,17 +97,17 @@ export function DocumentsTable() {
                 </td>
                 <td className="px-3 py-3.5">
                   <div className="flex flex-col gap-0.5">
-                    <span className="font-medium text-foreground text-xs truncate max-w-[220px]">{doc.name}</span>
+                    <span className="font-medium text-foreground text-xs truncate max-w-55">{doc.name}</span>
                   </div>
                 </td>
                 <td className="px-3 py-3.5 hidden md:table-cell">
                   <Badge variant="outline" className="text-[10px] font-normal">{doc.type}</Badge>
                 </td>
                 <td className="px-3 py-3.5 hidden lg:table-cell">
-                  <Badge variant="outline" className="text-[10px] font-normal">{doc.armoire}</Badge>
+                  <Badge variant="outline" className="text-[10px] font-normal">{doc.armoireName}</Badge>
                 </td>
                 <td className="px-3 py-3.5 hidden xl:table-cell">
-                  <span className="text-xs text-muted-foreground truncate max-w-[180px]">{doc.path}</span>
+                  <span className="text-xs text-muted-foreground truncate max-w-45">{doc.directionName}/{doc.armoireName}/{doc.dossierName}</span>
                 </td>
                 <td className="px-3 py-3.5 hidden sm:table-cell">
                   {doc.source === "email" && (
@@ -87,7 +126,12 @@ export function DocumentsTable() {
                 </td>
                 <td className="px-5 py-3.5">
                   <div className="flex items-center justify-end gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                    <Button variant="ghost" size="icon" className="h-7 w-7 text-muted-foreground hover:text-foreground">
+                    <Button 
+                      variant="ghost" 
+                      size="icon" 
+                      className="h-7 w-7 text-muted-foreground hover:text-foreground"
+                      onClick={() => handleOpenFile(doc.id, doc)}
+                    >
                       <Eye className="h-3.5 w-3.5" />
                     </Button>
                     <Button variant="ghost" size="icon" className="h-7 w-7 text-muted-foreground hover:text-foreground">
@@ -114,6 +158,17 @@ export function DocumentsTable() {
           </tbody>
         </table>
       </div>
+
+      {selectedFile && selectedContext && (
+        <DocumentDetailPanel 
+          file={selectedFile} 
+          context={selectedContext}
+          onClose={() => {
+            setSelectedFile(null)
+            setSelectedContext(null)
+          }}
+        />
+      )}
     </div>
   )
 }
