@@ -15,7 +15,7 @@ import {
 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { cn } from "@/lib/utils"
-import { type DocFile } from "@/lib/store"
+import { store, type DocFile } from "@/lib/store"
 import { toast } from "sonner"
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -819,7 +819,10 @@ export function DocumentDetailPanel({ file, context, onClose }: DocumentDetailPa
               <Send className="h-3.5 w-3.5" />Envoyer pour validation
             </Button>
             <Button variant="outline" size="sm" className="h-8 gap-1.5 text-xs rounded"
-              onClick={() => toast.info("Sélection du tampon...")}>
+              onClick={() => {
+                onClose()
+                router.push(`/document/${file.id}?action=stamp`)
+              }}>
               <Stamp className="h-3.5 w-3.5" />Apposer un tampon
             </Button>
             <Button variant="ghost" size="sm"
@@ -873,11 +876,11 @@ export function DocumentDetailPanel({ file, context, onClose }: DocumentDetailPa
               </div>
               <div>
                 <p className="text-sm font-semibold text-foreground">Supprimer le document ?</p>
-                <p className="text-xs text-muted-foreground mt-0.5">Cette action est irréversible.</p>
+                <p className="text-xs text-muted-foreground mt-0.5">Le document sera envoyé dans la corbeille.</p>
               </div>
             </div>
             <p className="text-xs text-muted-foreground bg-muted/50 rounded p-3 mb-4 border border-border/50">
-              <span className="font-medium text-foreground">{file.name}</span> sera définitivement supprimé du système GED.
+              <span className="font-medium text-foreground">{file.name}</span> sera déplacé dans la corbeille.
             </p>
             <div className="flex gap-2">
               <Button variant="outline" size="sm" className="flex-1 h-9 rounded text-sm"
@@ -886,7 +889,18 @@ export function DocumentDetailPanel({ file, context, onClose }: DocumentDetailPa
               </Button>
               <Button size="sm"
                 className="flex-1 h-9 rounded text-sm bg-destructive text-destructive-foreground hover:bg-destructive/90"
-                onClick={() => { toast.error("Document supprimé"); setShowDeleteConfirm(false); onClose() }}>
+                onClick={() => {
+                  store.deleteDocument(file.id)
+                  toast.success("Document déplacé dans la corbeille", {
+                    description: "Vous pouvez le restaurer depuis la page Corbeille.",
+                    action: {
+                      label: "Voir la corbeille",
+                      onClick: () => router.push("/corbeille")
+                    }
+                  })
+                  setShowDeleteConfirm(false)
+                  onClose()
+                }}>
                 Supprimer
               </Button>
             </div>

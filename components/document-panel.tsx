@@ -9,6 +9,7 @@ import { cn } from "@/lib/utils"
 import { useState, useEffect } from "react"
 import { useRouter } from "next/navigation"
 import { toast } from "sonner"
+import { store } from "@/lib/store"
 
 interface DocumentPanelProps {
   isOpen: boolean
@@ -246,10 +247,45 @@ export function DocumentPanel({ isOpen, onClose, fileName = "Document.pdf", file
               <Button
                 className="flex-1 h-11 text-sm font-medium rounded-xl"
                 onClick={() => {
-                  // Construire le chemin d'accès
+                  // Resoudre direction / armoire dans le store
+                  let finalDirId = "akieni"
+                  let finalArmId = "finance"
+                  let finalDosId = "factures-2026"
+
+                  if (file) {
+                    const directions = store.getDirections()
+                    
+                    const matchedDir = directions.find(d => 
+                      d.id.toLowerCase() === selectedDirection.toLowerCase() ||
+                      d.name.toLowerCase().includes(selectedDirection.toLowerCase())
+                    ) || directions[0]
+
+                    if (matchedDir) {
+                      finalDirId = matchedDir.id
+                      
+                      const armoires = matchedDir.agences.flatMap(ag => ag.services.flatMap(svc => svc.armoires))
+                      const matchedArm = armoires.find(a => 
+                        a.id.toLowerCase().includes(selectedArmoire.toLowerCase()) ||
+                        a.name.toLowerCase().includes(selectedArmoire.toLowerCase())
+                      ) || armoires[0]
+
+                      if (matchedArm) {
+                        finalArmId = matchedArm.id
+                        
+                        let matchedDos = matchedArm.dossiers[0]
+                        if (!matchedDos) {
+                          matchedDos = store.addDossier(finalDirId, finalArmId, "Documents importes")
+                        }
+                        finalDosId = matchedDos.id
+                      }
+                    }
+
+                    // Enregistrer le fichier dans la base locale (le store)
+                    store.addDocuments(finalDirId, finalArmId, finalDosId, [{ file, source: "upload" }])
+                  }
+
                   const path = `${selectedDirection} / ${selectedArmoire}`
                   
-                  // Afficher le toast avec l'action
                   toast.success(`Document classé avec succès dans: ${path}`, {
                     description: "Le document est maintenant accessible à sa destination",
                     action: {
@@ -260,14 +296,12 @@ export function DocumentPanel({ isOpen, onClose, fileName = "Document.pdf", file
                         </div>
                       ),
                       onClick: () => {
-                        // Rediriger vers la destination
-                        router.push(`/direction?direction=${selectedDirection}&armoire=${selectedArmoire}`)
+                        router.push(`/direction?direction=${finalDirId}&armoire=${finalArmId}`)
                       }
                     },
                     duration: 5000
                   })
                   
-                  // Fermer le panel
                   onClose()
                 }}
               >

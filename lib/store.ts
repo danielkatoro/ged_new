@@ -1,6 +1,19 @@
 "use client"
 
+import { fileRegistry } from "./file-registry"
+
 // ─── Types ────────────────────────────────────────────────────────────────────
+
+export interface StampItem {
+  id: string
+  text: string
+  color: "green" | "blue" | "red"
+  x: number // X coordinate percentage (0-100)
+  y: number // Y coordinate percentage (0-100)
+  rotation: number // rotation in degrees
+  date: string
+  author: string
+}
 
 export interface DocFile {
   id: string
@@ -23,6 +36,12 @@ export interface DocFile {
   ocrContent?: string  // Full-text OCR content for search
   versions: { version: number; date: string; author: string }[]
   activity: { action: string; user: string; date: string; ip?: string }[]
+  stamps?: StampItem[]
+  originalContext?: {
+    directionId: string
+    armoireId: string
+    dossierId: string
+  }
 }
 
 export interface Dossier {
@@ -113,7 +132,7 @@ export interface AuditLog {
   action: string
   user: string
   target: string
-  targetType: "document" | "dossier" | "armoire" | "direction" | "user" | "workflow"
+  targetType: "document" | "dossier" | "armoire" | "direction" | "user" | "workflow" | "service"
   date: string
   ip: string
   details?: string
@@ -670,7 +689,7 @@ class Store {
   // Subscribe to changes
   subscribe(listener: () => void) {
     this.listeners.add(listener)
-    return () => this.listeners.delete(listener)
+    return () => { this.listeners.delete(listener) }
   }
 
   private notify() {
@@ -838,21 +857,25 @@ class Store {
       return 'img'
     }
 
-    const docs: DocFile[] = files.map((entry, index) => ({
-      id: `doc-${Date.now()}-${index}`,
-      name: entry.file.name,
-      type: guessType(entry.file.name),
-      size: `${(entry.file.size / 1024).toFixed(0)} KB`,
-      date: today,
-      status: 'En attente',
-      confidence: 0,
-      author: 'Systeme',
-      description: `Importe depuis ${entry.source}`,
-      tags: [],
-      source: entry.source,
-      versions: [{ version: 1, date: today, author: 'Systeme' }],
-      activity: [{ action: 'Importe', user: 'Systeme', date: today, ip: '127.0.0.1' }],
-    }))
+    const docs: DocFile[] = files.map((entry, index) => {
+      const docId = `doc-${Date.now()}-${index}`
+      fileRegistry.register(docId, entry.file)
+      return {
+        id: docId,
+        name: entry.file.name,
+        type: guessType(entry.file.name),
+        size: `${(entry.file.size / 1024).toFixed(0)} KB`,
+        date: today,
+        status: 'En attente',
+        confidence: 0,
+        author: 'Systeme',
+        description: `Importe depuis ${entry.source}`,
+        tags: [],
+        source: entry.source,
+        versions: [{ version: 1, date: today, author: 'Systeme' }],
+        activity: [{ action: 'Importe', user: 'Systeme', date: today, ip: '127.0.0.1' }],
+      }
+    })
 
     this.directions = this.directions.map(d => {
       if (d.id !== directionId) return d
@@ -930,10 +953,87 @@ class Store {
     return this.getAllDocuments().find(d => d.id === id)
   }
 
+  addStampToDocument(
+    docId: string,
+    stampData: { text: string; color: "green" | "blue" | "red"; x: number; y: number; rotation: number; author?: string }
+  ) {
+    const today = new Date().toLocaleString("fr-FR").replace(/\//g, "-")
+    const author = stampData.author || "C. Boka"
+    const stamp: StampItem = {
+      id: `stamp-${Date.now()}`,
+      text: stampData.text,
+      color: stampData.color,
+      x: stampData.x,
+      y: stampData.y,
+      rotation: stampData.rotation,
+      date: today,
+      author,
+    }
+
+    let newStatus: DocFile["status"] | null = null
+    if (stamp.text === "APPROUVÉ") {
+      newStatus = "Approuve"
+    } else if (stamp.text === "REFUSÉ") {
+      newStatus = "Rejete"
+    } else if (stamp.text === "PAYÉ") {
+      newStatus = "Approuve"
+    }
+
+    this.directions = this.directions.map(d => ({
+      ...d,
+      agences: d.agences.map(ag => ({
+        ...ag,
+        services: ag.services.map(svc => ({
+          ...svc,
+          armoires: svc.armoires.map(a => ({
+            ...a,
+            dossiers: a.dossiers.map(dos => ({
+              ...dos,
+              files: dos.files.map(f => {
+                if (f.id !== docId) return f
+
+                const updatedStamps = [...(f.stamps || []), stamp]
+                const updatedActivity = [
+                  ...f.activity,
+                  {
+                    action: `Tampon ${stamp.text} appose`,
+                    user: author,
+                    date: today,
+                    ip: "127.0.0.1",
+                  }
+                ]
+                
+                return {
+                  ...f,
+                  stamps: updatedStamps,
+                  activity: updatedActivity,
+                  status: newStatus || f.status,
+                }
+              })
+            }))
+          }))
+        }))
+      }))
+    }))
+
+    this.addAuditLog(
+      `Tampon ${stamp.text} appose`,
+      author,
+      docId,
+      "document",
+      `Tampon de couleur ${stamp.color} place aux coordonnees (${stamp.x.toFixed(0)}%, ${stamp.y.toFixed(0)}%)`
+    )
+    this.notify()
+  }
+
   deleteDocument(docId: string) {
-    const doc = this.getDocument(docId)
-    if (doc) {
-      this.trash = [...this.trash, doc]
+    const docWithCtx = this.getAllDocumentsWithContext().find(d => d.id === docId)
+    if (docWithCtx) {
+      const { directionId, armoireId, dossierId, directionName, armoireName, dossierName, ...doc } = docWithCtx
+      this.trash = [...this.trash, {
+        ...doc,
+        originalContext: { directionId, armoireId, dossierId }
+      }]
       this.addAuditLog("Document supprime", "C. Boka", doc.name, "document")
     }
     this.directions = this.directions.map(d => ({
@@ -962,11 +1062,38 @@ class Store {
 
   restoreFromTrash(docId: string) {
     const doc = this.trash.find(d => d.id === docId)
-    if (doc) {
-      this.trash = this.trash.filter(d => d.id !== docId)
-      this.addAuditLog("Document restaure", "C. Boka", doc.name, "document")
-      this.notify()
+    if (!doc) return
+
+    this.trash = this.trash.filter(d => d.id !== docId)
+    const { originalContext, ...cleanDoc } = doc
+
+    if (originalContext) {
+      this.directions = this.directions.map(d => {
+        if (d.id !== originalContext.directionId) return d
+        const agences = d.agences.map(ag => ({
+          ...ag,
+          services: ag.services.map(svc => ({
+            ...svc,
+            armoires: svc.armoires.map(a =>
+              a.id === originalContext.armoireId
+                ? {
+                    ...a,
+                    dossiers: a.dossiers.map(dos =>
+                      dos.id === originalContext.dossierId
+                        ? { ...dos, files: [...dos.files, cleanDoc] }
+                        : dos
+                    )
+                  }
+                : a
+            )
+          }))
+        }))
+        return { ...d, agences, armoires: this.flattenArmoires({ ...d, agences }) }
+      })
     }
+
+    this.addAuditLog("Document restaure", "C. Boka", cleanDoc.name, "document")
+    this.notify()
   }
 
   emptyTrash() {
